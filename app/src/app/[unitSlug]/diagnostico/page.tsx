@@ -295,12 +295,12 @@ export default async function DiagnosticoPage({ params }: Props) {
         {/* ── Botões ── */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: sobra < 0 || expensesPct > 70 ? 0 : 6 }}>
           <a href={`/${unitSlug}/painel`} style={btnPrimary}>
-            Ver meu painel →
+            Ir para meu painel →
           </a>
-          <a href={`/${unitSlug}`} style={btnSecondary}>
+          <a href={`/${unitSlug}/dna`} style={btnSecondary}>
             Melhorar meu diagnóstico
           </a>
-          <a href={`/${unitSlug}/despesas`} style={btnSecondary}>
+          <a href={`/${unitSlug}/despesas/nova`} style={btnSecondary}>
             Cadastrar uma despesa
           </a>
         </div>
