@@ -56,16 +56,16 @@ function validateLeadInput(data: Record<string, string>): {
     errors.city = 'Informe sua cidade'
   }
 
-  // Renda mensal
-  const monthly_income = parseFloat(data.monthly_income?.replace(',', '.') ?? '')
+  // Renda mensal — remove separador de milhar (.) antes de trocar vírgula decimal
+  const monthly_income = parseFloat((data.monthly_income ?? '').replace(/\./g, '').replace(',', '.'))
   if (isNaN(monthly_income) || monthly_income < 0) {
     errors.monthly_income = 'Informe um valor válido'
   } else if (monthly_income > 9_999_999) {
     errors.monthly_income = 'Valor fora do intervalo esperado'
   }
 
-  // Despesas mensais
-  const monthly_expenses = parseFloat(data.monthly_expenses?.replace(',', '.') ?? '')
+  // Despesas mensais — idem
+  const monthly_expenses = parseFloat((data.monthly_expenses ?? '').replace(/\./g, '').replace(',', '.'))
   if (isNaN(monthly_expenses) || monthly_expenses < 0) {
     errors.monthly_expenses = 'Informe um valor válido'
   } else if (monthly_expenses > 9_999_999) {
