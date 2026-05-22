@@ -21,11 +21,12 @@ type DreamValue = (typeof DREAMS)[number]['value']
 
 // ── Formatters ────────────────────────────────────────────────────────────────
 function formatCurrency(raw: string): string {
+  // Keep only digits — user types "6000" and sees "6.000"
   const digits = raw.replace(/\D/g, '')
   if (!digits) return ''
-  return (parseInt(digits, 10) / 100).toLocaleString('pt-BR', {
-    minimumFractionDigits: 2, maximumFractionDigits: 2,
-  })
+  const num = parseInt(digits, 10)
+  if (isNaN(num)) return ''
+  return num.toLocaleString('pt-BR')
 }
 
 function parseCurrencyToFloat(formatted: string): string {
@@ -425,8 +426,7 @@ export function RegisterForm({ unit, createLeadAction }: RegisterFormProps) {
                     <input name="monthly_income" type="text"
                       value={incomeDisplay}
                       onChange={e => setIncomeDisplay(formatCurrency(e.target.value))}
-                      onBlur={e => { e.currentTarget.value = parseCurrencyToFloat(incomeDisplay) }}
-                      placeholder="3.500,00" inputMode="numeric" required
+                      placeholder="Ex: 3500" inputMode="numeric" required
                       style={{ ...inputSt, paddingLeft: 44 }} />
                   </div>
                 </Field>
@@ -441,8 +441,7 @@ export function RegisterForm({ unit, createLeadAction }: RegisterFormProps) {
                     <input name="monthly_expenses" type="text"
                       value={expenseDisplay}
                       onChange={e => setExpenseDisplay(formatCurrency(e.target.value))}
-                      onBlur={e => { e.currentTarget.value = parseCurrencyToFloat(expenseDisplay) }}
-                      placeholder="2.800,00" inputMode="numeric" required
+                      placeholder="Ex: 2800" inputMode="numeric" required
                       style={{ ...inputSt, paddingLeft: 44 }} />
                   </div>
                 </Field>
