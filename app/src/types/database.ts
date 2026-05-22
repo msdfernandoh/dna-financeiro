@@ -123,6 +123,14 @@ export type CreateLeadResult =
   | { success: false; error: string; field?: string }
 
 // ---------------------------------------------------------------------------
+// Resposta da Server Action de criação de despesa
+// ---------------------------------------------------------------------------
+
+export type CreateExpenseResult =
+  | { success: true }
+  | { success: false; error: string; field?: string }
+
+// ---------------------------------------------------------------------------
 // Erros de validação do formulário
 // ---------------------------------------------------------------------------
 

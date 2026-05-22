@@ -5,6 +5,20 @@ import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { C } from '@/app/components/ui'
 import { DailyQuestion } from './DailyQuestion'
 
+// ── Categorias de despesa ─────────────────────────────────────────────────────
+
+const EXPENSE_CATS: Record<string, { emoji: string; label: string }> = {
+  alimentacao: { emoji: '🍽️', label: 'Alimentação' },
+  mercado:     { emoji: '🛒', label: 'Mercado' },
+  transporte:  { emoji: '🚗', label: 'Transporte' },
+  saude:       { emoji: '💊', label: 'Saúde' },
+  educacao:    { emoji: '📚', label: 'Educação' },
+  lazer:       { emoji: '🎮', label: 'Lazer' },
+  dividas:     { emoji: '💳', label: 'Dívidas' },
+  contas:      { emoji: '📄', label: 'Contas fixas' },
+  outros:      { emoji: '📦', label: 'Outros' },
+}
+
 // ── Sonhos ────────────────────────────────────────────────────────────────────
 
 const DREAMS: Record<string, { label: string; emoji: string }> = {
@@ -82,7 +96,7 @@ export default async function PainelPage({ params }: Props) {
     redirect(`/${unitSlug}`)
   }
 
-  // 4. Cálculos
+  // 4. Cálculos financeiros
   const income       = lead.monthly_income   ?? 0
   const expenses     = lead.monthly_expenses ?? 0
   const sobra        = income - expenses
@@ -93,6 +107,25 @@ export default async function PainelPage({ params }: Props) {
   const dreamInfo = DREAMS[dream] ?? DREAMS.outro
   const firstName = lead.name.split(' ')[0]
   const avatar    = initials(lead.name)
+
+  // 5. Buscar despesas recentes (não falha se tabela estiver vazia)
+  const today = new Date().toISOString().split('T')[0]
+  let recentExpenses: { amount: number; category: string; description: string | null; expense_date: string }[] = []
+  let todayTotal = 0
+  try {
+    const supabase2 = createServerSupabaseClient()
+    const { data: expData } = await supabase2
+      .from('expenses')
+      .select('amount, category, description, expense_date')
+      .eq('lead_id', leadId)
+      .is('deleted_at', null)
+      .order('created_at', { ascending: false })
+      .limit(3)
+    recentExpenses = expData ?? []
+    todayTotal = recentExpenses
+      .filter(e => e.expense_date === today)
+      .reduce((sum, e) => sum + e.amount, 0)
+  } catch { /* silently ignore */ }
 
   // Saudação por hora do servidor
   const hour     = new Date().getHours()
@@ -209,6 +242,64 @@ export default async function PainelPage({ params }: Props) {
           <p style={{ fontSize: 11, color: C.textSec, margin: 0 }}>
             Diagnóstico iniciado — próximo passo: definir sua meta financeira
           </p>
+        </div>
+
+        {/* ── Despesas recentes ── */}
+        <div style={{
+          background: '#fff', borderRadius: 16,
+          padding: '14px 16px', marginBottom: 10,
+          border: `0.5px solid ${C.border}`,
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+            <span style={{ fontSize: 13, fontWeight: 500, color: C.text }}>Despesas registradas</span>
+            {todayTotal > 0 && (
+              <span style={{
+                background: C.coralBg, color: C.coralDark,
+                fontSize: 11, fontWeight: 500, padding: '2px 8px', borderRadius: 99,
+              }}>Hoje: {fmtBRL(todayTotal)}</span>
+            )}
+          </div>
+
+          {recentExpenses.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '16px 0' }}>
+              <p style={{ fontSize: 22, margin: '0 0 6px' }}>📭</p>
+              <p style={{ fontSize: 13, color: C.textSec, margin: 0 }}>
+                Nenhuma despesa registrada ainda.
+              </p>
+              <p style={{ fontSize: 11, color: C.textTer, margin: '4px 0 0' }}>
+                Lance sua primeira despesa para melhorar seu diagnóstico.
+              </p>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {recentExpenses.map((exp, i) => {
+                const cat = EXPENSE_CATS[exp.category] ?? { emoji: '📦', label: exp.category }
+                return (
+                  <div key={i} style={{
+                    display: 'flex', alignItems: 'center', gap: 10,
+                    paddingBottom: i < recentExpenses.length - 1 ? 8 : 0,
+                    borderBottom: i < recentExpenses.length - 1 ? `0.5px solid ${C.border}` : 'none',
+                  }}>
+                    <div style={{
+                      width: 34, height: 34, borderRadius: 10, background: C.bgSecondary,
+                      flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16,
+                    }}>{cat.emoji}</div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <p style={{ fontSize: 13, fontWeight: 500, color: C.text, margin: 0 }}>{cat.label}</p>
+                      {exp.description && (
+                        <p style={{ fontSize: 11, color: C.textSec, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {exp.description}
+                        </p>
+                      )}
+                    </div>
+                    <span style={{ fontSize: 14, fontWeight: 500, color: C.coral, flexShrink: 0 }}>
+                      -{fmtBRL(exp.amount)}
+                    </span>
+                  </div>
+                )
+              })}
+            </div>
+          )}
         </div>
 
         {/* ── Pergunta do dia (Client Component) ── */}

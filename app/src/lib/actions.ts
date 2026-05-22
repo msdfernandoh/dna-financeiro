@@ -24,7 +24,7 @@
 import { cookies, headers } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
-import type { LeadCreateInput, CreateLeadResult, FormErrors } from '@/types/database'
+import type { LeadCreateInput, CreateLeadResult, CreateExpenseResult, FormErrors } from '@/types/database'
 
 // ---------------------------------------------------------------------------
 // Validação dos campos do formulário
@@ -275,4 +275,97 @@ export async function createLead(
 
   // Redirecionar para o diagnóstico
   redirect(`/${unitSlug}/diagnostico`)
+}
+
+// ---------------------------------------------------------------------------
+// Server Action: Registrar despesa
+//
+// SEGURANÇA:
+//   • unitSlug é vinculado pelo Server Component — nunca do browser
+//   • lead_id e unit_id são resolvidos do cookie + banco — nunca do FormData
+//   • service_role usada apenas aqui no servidor
+// ---------------------------------------------------------------------------
+
+const VALID_CATEGORIES = [
+  'alimentacao', 'mercado', 'transporte', 'saude',
+  'educacao', 'lazer', 'dividas', 'contas', 'outros',
+] as const
+
+export async function createExpense(
+  unitSlug: string,
+  _prevState: CreateExpenseResult | null,
+  formData: FormData,
+): Promise<CreateExpenseResult> {
+  // 1. Ler e decodificar cookie
+  const cookieStore = await cookies()
+  const token = cookieStore.get('dna_lead_token')?.value
+  if (!token) return { success: false, error: 'Sessão não encontrada. Faça o cadastro novamente.' }
+
+  let leadId: string
+  try {
+    const decoded = Buffer.from(token, 'base64url').toString('utf-8')
+    leadId = decoded.split(':')[0]
+    if (!leadId || !/^[0-9a-f-]{36}$/.test(leadId)) throw new Error('invalid')
+  } catch {
+    return { success: false, error: 'Sessão inválida.' }
+  }
+
+  // 2. Validar e sanitizar dados do formulário
+  const amountRaw = formData.get('amount')?.toString() ?? ''
+  const amount = parseFloat(amountRaw.replace(/\./g, '').replace(',', '.'))
+
+  if (isNaN(amount) || amount <= 0) {
+    return { success: false, error: 'Informe um valor maior que zero.', field: 'amount' }
+  }
+  if (amount > 99999.99) {
+    return { success: false, error: 'Valor muito alto. Verifique o que foi digitado.', field: 'amount' }
+  }
+
+  const category = formData.get('category')?.toString().trim() ?? ''
+  if (!VALID_CATEGORIES.includes(category as typeof VALID_CATEGORIES[number])) {
+    return { success: false, error: 'Selecione uma categoria.', field: 'category' }
+  }
+
+  const rawDesc    = formData.get('description')?.toString().trim() ?? ''
+  const payMethod  = formData.get('payment_method')?.toString().trim() ?? ''
+  const description = [rawDesc, payMethod].filter(Boolean).join(' · ') || null
+
+  const expenseDateRaw = formData.get('expense_date')?.toString() ?? ''
+  const expenseDate = /^\d{4}-\d{2}-\d{2}$/.test(expenseDateRaw)
+    ? expenseDateRaw
+    : new Date().toISOString().split('T')[0]
+
+  // 3. Resolver lead + unit_id do banco (valida unit_slug → sem cross-unit)
+  const supabase = createServerSupabaseClient()
+  const { data: lead, error: leadError } = await supabase
+    .from('leads')
+    .select('id, unit_id')
+    .eq('id', leadId)
+    .eq('unit_slug', unitSlug)
+    .is('deleted_at', null)
+    .single()
+
+  if (leadError || !lead) {
+    return { success: false, error: 'Sessão inválida ou expirada. Tente novamente.' }
+  }
+
+  // 4. Inserir despesa — unit_id e lead_id vêm do servidor, nunca do browser
+  const { error: insertError } = await supabase
+    .from('expenses')
+    .insert({
+      unit_id:      lead.unit_id,  // ← resolvido do banco, nunca do client
+      lead_id:      lead.id,       // ← resolvido do cookie
+      amount,
+      category,
+      description,
+      input_method: 'manual',
+      expense_date: expenseDate,
+    })
+
+  if (insertError) {
+    console.error('[createExpense]', insertError.message)
+    return { success: false, error: 'Erro ao salvar a despesa. Tente novamente em instantes.' }
+  }
+
+  redirect(`/${unitSlug}/despesas/sucesso`)
 }
