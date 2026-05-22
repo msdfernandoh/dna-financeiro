@@ -1,0 +1,1613 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DNA Financeiro — MVP v2</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f0eff5;display:flex;flex-direction:column;align-items:center;min-height:100vh;padding:16px 0 32px}
+
+/* ── phone shell ── */
+.phone-wrap{display:flex;justify-content:center}
+.phone{width:375px;height:720px;background:#fff;border-radius:44px;border:2px solid #ddd;overflow:hidden;position:relative;display:flex;flex-direction:column;box-shadow:0 24px 64px rgba(0,0,0,.12)}
+
+/* ── screens ── */
+.screen{display:none;flex-direction:column;flex:1;overflow:hidden}
+.screen.active{display:flex}
+.content{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch}
+.content::-webkit-scrollbar{display:none}
+
+/* ── status bar ── */
+.status-bar{display:flex;justify-content:space-between;align-items:center;padding:10px 22px 4px;font-size:11px;color:#888;flex-shrink:0;letter-spacing:.2px}
+
+/* ── bottom nav ── */
+.bottom-nav{display:flex;background:#fff;border-top:.5px solid #e8e8e8;padding:6px 0 14px;flex-shrink:0}
+.nav-item{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;cursor:pointer;padding:4px;border:none;background:none;font-family:inherit}
+.nav-item i{font-size:21px;color:#bbb;transition:color .2s}
+.nav-item span{font-size:9px;color:#bbb;transition:color .2s}
+.nav-item.active i,.nav-item.active span{color:#7F77DD}
+
+/* ── color tokens ── */
+:root{
+  --purple:#7F77DD;--purple-light:#EEEDFE;--purple-mid:#534AB7;--purple-dark:#3C3489;
+  --green:#1D9E75;--green-light:#E1F5EE;--green-mid:#0F6E56;
+  --amber:#EF9F27;--amber-light:#FAEEDA;--amber-mid:#854F0B;
+  --coral:#D85A30;--coral-light:#FAECE7;--coral-mid:#993C1D;
+  --text:#1a1a1a;--text2:#666;--text3:#aaa;
+  --border:#ebebeb;--surface:#f7f7f9;
+}
+
+/* ── typography ── */
+h1{font-size:26px;font-weight:600;color:var(--text);line-height:1.25}
+h2{font-size:19px;font-weight:600;color:var(--text)}
+h3{font-size:15px;font-weight:600;color:var(--text)}
+p{font-size:13px;color:var(--text2);line-height:1.5}
+
+/* ── buttons ── */
+.btn{width:100%;border:none;border-radius:14px;padding:15px;font-size:15px;font-weight:600;cursor:pointer;font-family:inherit;transition:opacity .15s,transform .1s;display:flex;align-items:center;justify-content:center;gap:8px}
+.btn:active{opacity:.85;transform:scale(.98)}
+.btn-primary{background:var(--purple);color:#fff}
+.btn-secondary{background:var(--surface);color:var(--text);border:.5px solid var(--border)}
+.btn-outline{background:transparent;color:var(--purple);border:1.5px solid var(--purple)}
+.btn-green{background:var(--green);color:#fff}
+.btn-sm{padding:10px 14px;font-size:13px;border-radius:10px;width:auto}
+
+/* ── progress ── */
+.progress-track{background:#ebebeb;border-radius:99px;height:7px;overflow:hidden}
+.progress-fill{height:100%;border-radius:99px;transition:width .4s ease}
+.progress-purple{background:var(--purple)}
+.progress-green{background:var(--green)}
+.progress-amber{background:var(--amber)}
+
+/* ── cards ── */
+.card{background:#fff;border:.5px solid var(--border);border-radius:18px;padding:15px 16px}
+.card-surface{background:var(--surface);border-radius:14px;padding:13px 14px}
+
+/* ── badge ── */
+.badge{display:inline-flex;align-items:center;gap:3px;padding:3px 9px;border-radius:99px;font-size:11px;font-weight:600}
+.badge-purple{background:var(--purple-light);color:var(--purple-mid)}
+.badge-green{background:var(--green-light);color:var(--green-mid)}
+.badge-amber{background:var(--amber-light);color:var(--amber-mid)}
+.badge-coral{background:var(--coral-light);color:var(--coral-mid)}
+.badge-gray{background:var(--surface);color:var(--text3);border:.5px solid var(--border)}
+
+/* ── avatar ── */
+.avatar{width:42px;height:42px;border-radius:50%;background:var(--purple-light);display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:600;color:var(--purple-mid);flex-shrink:0}
+
+/* ── input ── */
+.inp{width:100%;background:var(--surface);border:.5px solid var(--border);border-radius:12px;padding:13px 14px;font-size:15px;font-family:inherit;color:var(--text);outline:none;transition:border .2s}
+.inp:focus{border-color:var(--purple)}
+
+/* ── sonho chip v2 — 2 colunas ── */
+.sonhos-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding-bottom:8px}
+.sonho-chip{border:1.5px solid var(--border);border-radius:16px;padding:16px 12px;display:flex;align-items:center;gap:12px;cursor:pointer;background:#fff;font-family:inherit;transition:border .15s,background .15s;min-height:64px}
+.sonho-chip i{font-size:24px;color:var(--text3);flex-shrink:0}
+.sonho-chip span{font-size:13px;color:var(--text2);font-weight:500;text-align:left;line-height:1.3}
+.sonho-chip.sel{border-color:var(--purple);background:var(--purple-light)}
+.sonho-chip.sel i{color:var(--purple)}
+.sonho-chip.sel span{color:var(--purple-mid)}
+
+/* ── category tap targets (48px min) ── */
+.cat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.cat-item{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;padding:12px 4px;border-radius:14px;background:var(--surface);cursor:pointer;min-height:68px;border:.5px solid transparent;transition:background .15s,border .15s}
+.cat-item.sel{background:var(--purple-light);border-color:var(--purple)}
+.cat-item i{font-size:22px;color:var(--text3)}
+.cat-item.sel i{color:var(--purple)}
+.cat-item span{font-size:10px;color:var(--text2);font-weight:500;text-align:center}
+
+/* ── divider ── */
+.divider{height:.5px;background:var(--border);margin:0 0 10px}
+
+/* ── reward card ── */
+.reward-card{background:#fff;border:.5px solid var(--border);border-radius:14px;padding:13px 14px;margin-bottom:8px;display:flex;align-items:center;gap:12px}
+.reward-icon{width:44px;height:44px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0}
+.reward-locked{opacity:.4}
+
+/* ── banner ── */
+.op-banner{border-radius:18px;overflow:hidden;padding:18px;position:relative;margin-bottom:10px}
+
+/* ── mini stat ── */
+.mini-stat{flex:1;background:var(--surface);border-radius:13px;padding:11px 12px;text-align:center}
+.mini-stat .val{font-size:18px;font-weight:700}
+.mini-stat .lbl{font-size:10px;color:var(--text3);margin-top:2px}
+
+/* ── bar chart ── */
+.bar-chart{display:flex;align-items:flex-end;gap:7px;height:90px}
+.bar-col{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px}
+.bar-val{font-size:8.5px;color:var(--text2);font-weight:600;min-height:10px}
+.bar-fill{width:100%;border-radius:5px 5px 0 0}
+.bar-day{font-size:9px;color:var(--text3)}
+
+/* ── notif dot ── */
+.notif-dot{width:8px;height:8px;border-radius:50%;background:var(--coral);position:absolute;top:1px;right:1px}
+
+/* ── animations ── */
+@keyframes pulse-ring{0%{transform:scale(1);opacity:.6}100%{transform:scale(1.5);opacity:0}}
+@keyframes wave{0%,100%{transform:scaleY(1)}50%{transform:scaleY(2.2)}}
+@keyframes scan-line{0%{top:4px;opacity:1}50%{top:calc(100% - 6px);opacity:1}51%{opacity:0}100%{top:4px;opacity:0}}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ── achievements strip ── */
+.ach-strip{background:var(--amber-light);border-radius:14px;padding:11px 14px;display:flex;align-items:center;gap:10px;cursor:pointer}
+.ach-strip i{font-size:20px;color:var(--amber-mid)}
+
+/* ── screen label ── */
+#screen-label{font-size:11px;color:#999;text-align:center;display:block;padding:8px 0 4px}
+
+/* ── minimap ── */
+.minimap{display:flex;flex-wrap:wrap;gap:5px;justify-content:center;padding:4px 12px 16px;max-width:420px}
+.mm-btn{background:#fff;border:.5px solid #ddd;border-radius:8px;padding:5px 10px;font-size:10px;cursor:pointer;font-family:inherit;color:#666;transition:background .15s}
+.mm-btn:hover{background:var(--purple-light);color:var(--purple-mid)}
+</style>
+</head>
+<body>
+
+<div class="phone-wrap">
+<div class="phone">
+
+<!-- ══════════════════════════════════════════
+     S1 — BOAS-VINDAS  (melhorado)
+══════════════════════════════════════════ -->
+<div class="screen active" id="s1">
+  <div class="status-bar"><span>9:41</span><span><i class="ti ti-wifi"></i> <i class="ti ti-battery-2"></i></span></div>
+  <div class="content" style="padding:0 24px;display:flex;flex-direction:column;justify-content:center;min-height:100%">
+    <div style="text-align:center;padding:28px 0 20px">
+      <div style="width:76px;height:76px;border-radius:22px;background:var(--purple-light);display:flex;align-items:center;justify-content:center;margin:0 auto 20px">
+        <i class="ti ti-dna-2" style="font-size:38px;color:var(--purple)"></i>
+      </div>
+      <!-- MELHORIA 1: headline emocional e concreta -->
+      <h1 style="font-size:24px;margin-bottom:10px">Em 2 minutos você descobre quanto pode guardar por mês</h1>
+      <p style="font-size:14px;margin-bottom:0;line-height:1.6">Seu consultor de IA que transforma sua realidade financeira em um plano real para conquistar seus sonhos.</p>
+    </div>
+
+    <!-- Social proof strip -->
+    <div style="display:flex;align-items:center;justify-content:center;gap:6px;margin-bottom:20px">
+      <div style="display:flex">
+        <div style="width:24px;height:24px;border-radius:50%;background:#c9c7f5;border:2px solid #fff;margin-right:-6px"></div>
+        <div style="width:24px;height:24px;border-radius:50%;background:#a5dfc8;border:2px solid #fff;margin-right:-6px"></div>
+        <div style="width:24px;height:24px;border-radius:50%;background:#f5c4a5;border:2px solid #fff"></div>
+      </div>
+      <p style="font-size:12px;color:var(--text2)"><strong style="color:var(--text)">+12.400 pessoas</strong> já descobriram seu DNA</p>
+    </div>
+
+    <!-- Benefícios: benefício > funcionalidade -->
+    <div style="background:var(--purple-light);border-radius:18px;padding:16px;margin-bottom:20px">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+        <div style="background:var(--purple);border-radius:9px;width:32px;height:32px;display:flex;align-items:center;justify-content:center;flex-shrink:0"><i class="ti ti-clock" style="font-size:15px;color:#fff"></i></div>
+        <span style="font-size:13px;font-weight:600;color:var(--purple-dark)">Diagnóstico grátis em 2 minutos</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+        <div style="background:var(--purple);border-radius:9px;width:32px;height:32px;display:flex;align-items:center;justify-content:center;flex-shrink:0"><i class="ti ti-target" style="font-size:15px;color:#fff"></i></div>
+        <span style="font-size:13px;font-weight:600;color:var(--purple-dark)">Prazo real para realizar seu sonho</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px">
+        <div style="background:var(--purple);border-radius:9px;width:32px;height:32px;display:flex;align-items:center;justify-content:center;flex-shrink:0"><i class="ti ti-currency-dollar" style="font-size:15px;color:#fff"></i></div>
+        <span style="font-size:13px;font-weight:600;color:var(--purple-dark)">Oportunidades de renda extra para você</span>
+      </div>
+    </div>
+
+    <!-- MELHORIA 1: CTA principal renomeado -->
+    <button class="btn btn-primary" onclick="go('s2')">
+      <i class="ti ti-search"></i> Descobrir meu diagnóstico grátis
+    </button>
+    <button class="btn btn-secondary" onclick="go('s2')" style="margin-top:8px">Já tenho conta — entrar</button>
+    <p style="text-align:center;font-size:10px;color:var(--text3);margin-top:10px;margin-bottom:4px"><i class="ti ti-lock" style="font-size:11px"></i> 100% gratuito · Seus dados são privados</p>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     S2 — CADASTRO  (reduzido para 4 campos)
+══════════════════════════════════════════ -->
+<div class="screen" id="s2">
+  <div class="status-bar"><span>9:41</span><span><i class="ti ti-wifi"></i> <i class="ti ti-battery-2"></i></span></div>
+  <div style="padding:14px 20px 6px;flex-shrink:0">
+    <button onclick="go('s1')" style="background:none;border:none;cursor:pointer;padding:0;color:var(--text2)"><i class="ti ti-arrow-left" style="font-size:20px"></i></button>
+    <div style="margin-top:10px">
+      <div class="progress-track"><div class="progress-fill progress-purple" style="width:16%"></div></div>
+      <p style="font-size:11px;color:var(--text3);margin-top:4px">Etapa 1 de 6</p>
+    </div>
+    <h2 style="margin-top:12px">Vamos começar</h2>
+    <!-- MELHORIA 2: subtítulo reforça leveza -->
+    <p style="margin-top:4px">Só o essencial — leva menos de 1 minuto.</p>
+  </div>
+  <div class="content" style="padding:8px 20px">
+    <!-- MELHORIA 2: apenas 4 campos, removido "Situação atual" -->
+    <div style="margin-top:4px">
+      <label style="font-size:12px;color:var(--text2);display:block;margin-bottom:6px;font-weight:500">Seu nome</label>
+      <input class="inp" type="text" placeholder="Ex: Fernando Silva" id="nomeInput">
+    </div>
+    <div style="margin-top:12px">
+      <label style="font-size:12px;color:var(--text2);display:block;margin-bottom:6px;font-weight:500">Cidade</label>
+      <input class="inp" type="text" placeholder="Ex: São Paulo – SP">
+    </div>
+    <div style="margin-top:12px">
+      <label style="font-size:12px;color:var(--text2);display:block;margin-bottom:6px;font-weight:500">Renda mensal aproximada</label>
+      <input class="inp" type="text" placeholder="R$ 3.500">
+    </div>
+    <div style="margin-top:12px">
+      <label style="font-size:12px;color:var(--text2);display:block;margin-bottom:6px;font-weight:500">Despesas mensais aproximadas</label>
+      <input class="inp" type="text" placeholder="R$ 2.800">
+    </div>
+    <!-- Note: "Situação atual" removido desta etapa, vai para DNA etapa 2 -->
+    <div style="background:var(--surface);border-radius:12px;padding:10px 12px;margin-top:14px;display:flex;align-items:center;gap:8px">
+      <i class="ti ti-info-circle" style="font-size:15px;color:var(--text3);flex-shrink:0"></i>
+      <p style="font-size:11px;color:var(--text3);line-height:1.4">Valores aproximados são suficientes. Você ajusta no seu perfil depois.</p>
+    </div>
+    <div style="margin-top:18px;padding-bottom:20px">
+      <button class="btn btn-primary" onclick="go('s3')">Continuar</button>
+      <p style="text-align:center;font-size:11px;color:var(--text3);margin-top:8px"><i class="ti ti-lock" style="font-size:11px"></i> Seus dados são privados e seguros</p>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     S3 — SONHOS  (grid 2 colunas, chips maiores)
+══════════════════════════════════════════ -->
+<div class="screen" id="s3">
+  <div class="status-bar"><span>9:41</span><span><i class="ti ti-wifi"></i> <i class="ti ti-battery-2"></i></span></div>
+  <div style="padding:14px 20px 6px;flex-shrink:0">
+    <button onclick="go('s2')" style="background:none;border:none;cursor:pointer;padding:0;color:var(--text2)"><i class="ti ti-arrow-left" style="font-size:20px"></i></button>
+    <div style="margin-top:10px">
+      <div class="progress-track"><div class="progress-fill progress-purple" style="width:33%"></div></div>
+      <p style="font-size:11px;color:var(--text3);margin-top:4px">Etapa 2 de 6</p>
+    </div>
+    <h2 style="margin-top:12px">Qual é o seu maior sonho?</h2>
+    <p style="margin-top:4px">Escolha o principal agora. Você adiciona mais depois.</p>
+  </div>
+  <!-- MELHORIA 3: grid 2 colunas, chips mais altos e táteis -->
+  <div class="content" style="padding:10px 16px">
+    <div class="sonhos-grid" id="sonhos-grid">
+      <div class="sonho-chip sel" onclick="selSonho(this)"><i class="ti ti-car"></i><span>Carro próprio</span></div>
+      <div class="sonho-chip" onclick="selSonho(this)"><i class="ti ti-home"></i><span>Casa própria</span></div>
+      <div class="sonho-chip" onclick="selSonho(this)"><i class="ti ti-building-store"></i><span>Negócio próprio</span></div>
+      <div class="sonho-chip" onclick="selSonho(this)"><i class="ti ti-plane"></i><span>Viagem dos sonhos</span></div>
+      <div class="sonho-chip" onclick="selSonho(this)"><i class="ti ti-piggy-bank"></i><span>Reserva de emergência</span></div>
+      <div class="sonho-chip" onclick="selSonho(this)"><i class="ti ti-school"></i><span>Faculdade</span></div>
+      <div class="sonho-chip" onclick="selSonho(this)"><i class="ti ti-tool"></i><span>Reforma da casa</span></div>
+      <div class="sonho-chip" onclick="selSonho(this)"><i class="ti ti-credit-card-off"></i><span>Quitar dívidas</span></div>
+      <div class="sonho-chip" onclick="selSonho(this)"><i class="ti ti-motorbike"></i><span>Moto</span></div>
+      <div class="sonho-chip" onclick="selSonho(this)"><i class="ti ti-heart"></i><span>Outro sonho</span></div>
+    </div>
+    <button class="btn btn-primary" onclick="go('s4')" style="margin-top:4px;margin-bottom:20px">Esse é meu sonho! <i class="ti ti-arrow-right"></i></button>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     S4 — DIAGNÓSTICO  (badge positivo)
+══════════════════════════════════════════ -->
+<div class="screen" id="s4">
+  <div class="status-bar"><span>9:41</span><span><i class="ti ti-wifi"></i> <i class="ti ti-battery-2"></i></span></div>
+  <div style="padding:14px 20px 6px;flex-shrink:0">
+    <button onclick="go('s3')" style="background:none;border:none;cursor:pointer;padding:0;color:var(--text2)"><i class="ti ti-arrow-left" style="font-size:20px"></i></button>
+    <div style="margin-top:10px">
+      <div class="progress-track"><div class="progress-fill progress-purple" style="width:50%"></div></div>
+      <p style="font-size:11px;color:var(--text3);margin-top:4px">Etapa 3 de 6</p>
+    </div>
+    <h2 style="margin-top:12px">Seu diagnóstico inicial</h2>
+    <p style="margin-top:4px">Com base no que você informou, nossa IA calculou:</p>
+  </div>
+  <div class="content" style="padding:8px 16px">
+    <!-- MELHORIA 4: badge positivo "Em evolução" em vez de "Reorganização" -->
+    <div style="background:var(--purple-light);border-radius:18px;padding:16px;margin-bottom:10px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+        <span style="font-size:13px;font-weight:600;color:var(--purple-dark)">Seu perfil financeiro</span>
+        <span class="badge badge-purple"><i class="ti ti-trending-up" style="font-size:10px"></i> Em evolução</span>
+      </div>
+      <div style="display:flex;gap:8px">
+        <div class="mini-stat"><div class="val" style="color:var(--purple)">R$ 700</div><div class="lbl">Sobra mensal</div></div>
+        <div class="mini-stat"><div class="val" style="color:var(--green)">20%</div><div class="lbl">Taxa de poupança</div></div>
+      </div>
+    </div>
+    <!-- Sonho com prazo -->
+    <div class="card" style="margin-bottom:10px">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+        <div style="background:var(--amber-light);border-radius:10px;width:38px;height:38px;display:flex;align-items:center;justify-content:center;flex-shrink:0"><i class="ti ti-car" style="font-size:18px;color:var(--amber-mid)"></i></div>
+        <div>
+          <p style="font-size:13px;font-weight:600;color:var(--text)">Carro próprio</p>
+          <p style="font-size:11px">Meta sugerida: R$ 25.000</p>
+        </div>
+      </div>
+      <div class="progress-track" style="margin-bottom:6px"><div class="progress-fill progress-amber" style="width:26%"></div></div>
+      <div style="display:flex;justify-content:space-between">
+        <span style="font-size:11px;color:var(--text3)">Guardando R$ 500/mês</span>
+        <span style="font-size:11px;color:var(--amber-mid);font-weight:600">~4 anos</span>
+      </div>
+    </div>
+    <!-- MELHORIA 4: reforçar valor entregue pela IA -->
+    <div style="background:var(--green-light);border-radius:14px;padding:14px;margin-bottom:10px">
+      <p style="font-size:12px;font-weight:600;color:var(--green-mid);margin-bottom:5px"><i class="ti ti-sparkles" style="font-size:13px"></i> Descoberta da IA</p>
+      <p style="font-size:13px;color:var(--green-mid);line-height:1.5">Com uma renda extra de <strong>R$ 300/mês</strong>, você realiza o sonho em <strong>2 anos e 6 meses</strong> — quase metade do tempo!</p>
+    </div>
+    <div style="background:var(--coral-light);border-radius:14px;padding:14px;margin-bottom:16px">
+      <p style="font-size:12px;font-weight:600;color:var(--coral-mid);margin-bottom:4px"><i class="ti ti-alert-triangle" style="font-size:13px"></i> Ponto de atenção</p>
+      <p style="font-size:12px;color:var(--coral-mid);line-height:1.5">Suas despesas representam 80% da renda. Reduza para 70% e sobre R$ 350 extras por mês.</p>
+    </div>
+    <!-- Vai para tela de notificações (nova S4b) -->
+    <button class="btn btn-primary" onclick="go('s4b')" style="margin-bottom:20px">Ver meu painel <i class="ti ti-arrow-right"></i></button>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     S4b — NOTIFICAÇÕES  (tela nova)
+══════════════════════════════════════════ -->
+<div class="screen" id="s4b">
+  <div class="status-bar"><span>9:41</span><span><i class="ti ti-wifi"></i> <i class="ti ti-battery-2"></i></span></div>
+  <div class="content" style="padding:32px 28px;display:flex;flex-direction:column;justify-content:center;min-height:100%">
+    <!-- Ilustração -->
+    <div style="text-align:center;margin-bottom:28px">
+      <div style="width:80px;height:80px;border-radius:24px;background:var(--amber-light);display:flex;align-items:center;justify-content:center;margin:0 auto 20px">
+        <i class="ti ti-bell-ringing" style="font-size:40px;color:var(--amber-mid)"></i>
+      </div>
+      <h1 style="font-size:22px;margin-bottom:10px;line-height:1.3">Quer lembretes inteligentes para não perder oportunidades?</h1>
+      <p style="font-size:14px;line-height:1.6">Te avisamos quando surgir uma nova chance de economizar, uma vaga de renda extra ou uma oportunidade para seu sonho.</p>
+    </div>
+    <!-- Exemplos de notificação -->
+    <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:28px">
+      <div style="background:var(--surface);border-radius:12px;padding:11px 13px;display:flex;align-items:center;gap:10px">
+        <i class="ti ti-currency-dollar" style="font-size:16px;color:var(--green);flex-shrink:0"></i>
+        <p style="font-size:12px;color:var(--text2)">"Surge uma diária de R$ 180 para sábado!"</p>
+      </div>
+      <div style="background:var(--surface);border-radius:12px;padding:11px 13px;display:flex;align-items:center;gap:10px">
+        <i class="ti ti-piggy-bank" style="font-size:16px;color:var(--purple);flex-shrink:0"></i>
+        <p style="font-size:12px;color:var(--text2)">"Você já pode guardar R$ 200 esse mês!"</p>
+      </div>
+      <div style="background:var(--surface);border-radius:12px;padding:11px 13px;display:flex;align-items:center;gap:10px">
+        <i class="ti ti-calendar-event" style="font-size:16px;color:var(--amber-mid);flex-shrink:0"></i>
+        <p style="font-size:12px;color:var(--text2)">"Palestra gratuita esta semana — não perca!"</p>
+      </div>
+    </div>
+    <button class="btn btn-primary" onclick="go('s5')" style="margin-bottom:10px">
+      <i class="ti ti-bell"></i> Ativar lembretes
+    </button>
+    <button class="btn btn-secondary" onclick="go('s5')">Agora não</button>
+    <p style="text-align:center;font-size:10px;color:var(--text3);margin-top:10px">Você pode desativar a qualquer momento em Configurações</p>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     S5 — DASHBOARD  (despesa em destaque, recompensas visíveis)
+══════════════════════════════════════════ -->
+<div class="screen" id="s5">
+  <div class="status-bar"><span>9:41</span><span><i class="ti ti-wifi"></i> <i class="ti ti-battery-2"></i></span></div>
+  <div class="content">
+    <!-- Header -->
+    <div style="padding:12px 18px 0;display:flex;align-items:center;justify-content:space-between">
+      <div>
+        <p style="font-size:12px;color:var(--text2)">Bom dia ☀️</p>
+        <h2>Fernando!</h2>
+      </div>
+      <div style="position:relative">
+        <div class="avatar">FS</div>
+        <div class="notif-dot"></div>
+      </div>
+    </div>
+
+    <!-- MELHORIA 11: conquistas strip visível no dashboard -->
+    <div style="padding:10px 16px 0">
+      <div class="ach-strip" onclick="go('s13')">
+        <i class="ti ti-trophy"></i>
+        <div style="flex:1">
+          <p style="font-size:12px;font-weight:600;color:var(--amber-mid)">3 conquistas desbloqueadas</p>
+          <p style="font-size:11px;color:#a06010">Toque para ver suas recompensas</p>
+        </div>
+        <span class="badge badge-amber">Novo!</span>
+      </div>
+    </div>
+
+    <!-- DNA progress -->
+    <div style="padding:10px 16px 0">
+      <div class="card">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+          <div style="display:flex;align-items:center;gap:8px">
+            <i class="ti ti-dna-2" style="font-size:17px;color:var(--purple)"></i>
+            <span style="font-size:13px;font-weight:600">DNA Financeiro</span>
+          </div>
+          <span style="font-size:13px;font-weight:700;color:var(--purple)">42%</span>
+        </div>
+        <div class="progress-track"><div class="progress-fill progress-purple" style="width:42%"></div></div>
+        <p style="font-size:11px;color:var(--text3);margin-top:5px">Complete e libere o plano financeiro avançado</p>
+      </div>
+    </div>
+
+    <!-- Stats -->
+    <div style="display:flex;gap:8px;padding:10px 16px 0">
+      <div class="mini-stat"><div class="val" style="color:var(--green)">R$ 700</div><div class="lbl">Disponível/mês</div></div>
+      <div class="mini-stat"><div class="val" style="color:var(--coral)">R$ 68</div><div class="lbl">Limite hoje</div></div>
+    </div>
+
+    <!-- MELHORIA 5: botão de despesa em posição de destaque, acima da pergunta -->
+    <div style="padding:12px 16px 0">
+      <button class="btn btn-primary" onclick="go('s6')" style="font-size:16px;padding:17px;border-radius:16px;letter-spacing:.2px">
+        <i class="ti ti-plus" style="font-size:20px"></i> Lançar despesa rápida
+      </button>
+    </div>
+
+    <!-- Sonho card -->
+    <div style="padding:10px 16px 0">
+      <div class="card">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+          <div style="background:var(--amber-light);border-radius:9px;width:34px;height:34px;display:flex;align-items:center;justify-content:center;flex-shrink:0"><i class="ti ti-car" style="font-size:16px;color:var(--amber-mid)"></i></div>
+          <div>
+            <p style="font-size:11px;color:var(--text3)">Seu sonho principal</p>
+            <p style="font-size:13px;font-weight:600;color:var(--text)">Carro próprio</p>
+          </div>
+          <div style="margin-left:auto;text-align:right">
+            <p style="font-size:10px;color:var(--text3)">Faltam</p>
+            <p style="font-size:14px;font-weight:700;color:var(--amber-mid)">R$ 18.500</p>
+          </div>
+        </div>
+        <div class="progress-track"><div class="progress-fill progress-amber" style="width:26%"></div></div>
+      </div>
+    </div>
+
+    <!-- MELHORIA 5: pergunta do dia abaixo do botão, visual mais leve -->
+    <div style="padding:10px 16px 0">
+      <div style="background:var(--purple-light);border-radius:16px;padding:13px 14px">
+        <div style="display:flex;align-items:center;gap:7px;margin-bottom:7px">
+          <i class="ti ti-message-circle-question" style="font-size:16px;color:var(--purple)"></i>
+          <span style="font-size:11px;font-weight:600;color:var(--purple-mid)">Pergunta do dia</span>
+        </div>
+        <p style="font-size:13px;color:var(--purple-dark);margin-bottom:10px">Você teve algum gasto fora do previsto ontem?</p>
+        <div style="display:flex;gap:8px">
+          <button onclick="go('s7')" style="flex:1;background:var(--purple);color:#fff;border:none;border-radius:9px;padding:8px;font-size:12px;cursor:pointer;font-family:inherit;font-weight:600">Sim, tive</button>
+          <button onclick="go('s7')" style="flex:1;background:#fff;color:var(--purple-mid);border:1.5px solid var(--purple);border-radius:9px;padding:8px;font-size:12px;cursor:pointer;font-family:inherit;font-weight:600">Não!</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Banner oportunidade -->
+    <div style="padding:10px 16px 0">
+      <div class="op-banner" style="background:var(--green-mid)">
+        <span class="badge" style="background:rgba(255,255,255,.2);color:#fff;margin-bottom:6px;display:inline-flex">Oportunidade da semana</span>
+        <p style="font-size:13px;font-weight:600;color:#fff;line-height:1.4">Palestra gratuita: Como sair do aluguel e planejar sua casa própria</p>
+        <button onclick="go('s11')" style="margin-top:8px;background:rgba(255,255,255,.2);border:none;border-radius:8px;padding:6px 12px;font-size:12px;color:#fff;cursor:pointer;font-family:inherit;font-weight:600;display:inline-block">Ver detalhes →</button>
+      </div>
+    </div>
+    <div style="height:16px"></div>
+  </div>
+  <nav class="bottom-nav">
+    <button class="nav-item active" onclick="go('s5')"><i class="ti ti-home"></i><span>Início</span></button>
+    <button class="nav-item" onclick="go('s9')"><i class="ti ti-dna-2"></i><span>DNA</span></button>
+    <!-- MELHORIA 10: ícone de briefcase para Oportunidades -->
+    <button class="nav-item" onclick="go('s11')"><i class="ti ti-briefcase"></i><span>Oportunidades</span></button>
+    <button class="nav-item" onclick="go('s14')"><i class="ti ti-chart-bar"></i><span>Relatórios</span></button>
+    <button class="nav-item" onclick="go('s15')"><i class="ti ti-user"></i><span>Perfil</span></button>
+  </nav>
+</div>
+
+<!-- ══════════════════════════════════════════
+     S6 — LANÇAR DESPESA  — seleção de modo
+══════════════════════════════════════════ -->
+<div class="screen" id="s6">
+  <div class="status-bar"><span>9:41</span><span><i class="ti ti-wifi"></i> <i class="ti ti-battery-2"></i></span></div>
+  <div style="padding:12px 20px 10px;flex-shrink:0;display:flex;align-items:center;gap:12px">
+    <button onclick="go('s5')" style="background:none;border:none;cursor:pointer;padding:0;color:var(--text2)"><i class="ti ti-arrow-left" style="font-size:20px"></i></button>
+    <h2>Lançar despesa</h2>
+  </div>
+  <div class="content" style="padding:0 18px">
+    <p style="font-size:13px;color:var(--text2);margin-bottom:16px;padding:0 2px">Como prefere registrar agora?</p>
+
+    <!-- MODO 1 — Digitar manualmente -->
+    <div onclick="go('s6m')" style="border:1.5px solid var(--border);border-radius:18px;padding:16px;margin-bottom:10px;display:flex;align-items:center;gap:14px;cursor:pointer;background:#fff;transition:border .15s" onmouseenter="this.style.borderColor='var(--purple)'" onmouseleave="this.style.borderColor='var(--border)'">
+      <div style="width:48px;height:48px;border-radius:14px;background:var(--purple-light);display:flex;align-items:center;justify-content:center;flex-shrink:0">
+        <i class="ti ti-keyboard" style="font-size:24px;color:var(--purple)"></i>
+      </div>
+      <div style="flex:1">
+        <p style="font-size:14px;font-weight:600;color:var(--text);margin-bottom:2px">Digitar manualmente</p>
+        <p style="font-size:12px;color:var(--text2)">Informe o valor e a categoria</p>
+      </div>
+      <i class="ti ti-chevron-right" style="font-size:18px;color:var(--text3)"></i>
+    </div>
+
+    <!-- MODO 2 — Falar despesa -->
+    <div onclick="go('s6v')" style="border:1.5px solid var(--border);border-radius:18px;padding:16px;margin-bottom:10px;display:flex;align-items:center;gap:14px;cursor:pointer;background:#fff;transition:border .15s" onmouseenter="this.style.borderColor='var(--green)'" onmouseleave="this.style.borderColor='var(--border)'">
+      <div style="width:48px;height:48px;border-radius:14px;background:var(--green-light);display:flex;align-items:center;justify-content:center;flex-shrink:0">
+        <i class="ti ti-microphone" style="font-size:24px;color:var(--green)"></i>
+      </div>
+      <div style="flex:1">
+        <p style="font-size:14px;font-weight:600;color:var(--text);margin-bottom:2px">Falar despesa</p>
+        <p style="font-size:12px;color:var(--text2)">"Gastei 45 reais no almoço"</p>
+      </div>
+      <i class="ti ti-chevron-right" style="font-size:18px;color:var(--text3)"></i>
+    </div>
+
+    <!-- MODO 3 — Fotografar comprovante (IA) -->
+    <div onclick="go('s6p')" style="border:1.5px solid var(--purple);border-radius:18px;padding:16px;margin-bottom:6px;display:flex;align-items:center;gap:14px;cursor:pointer;background:var(--purple-light);position:relative;overflow:hidden">
+      <div style="width:48px;height:48px;border-radius:14px;background:var(--purple);display:flex;align-items:center;justify-content:center;flex-shrink:0">
+        <i class="ti ti-camera" style="font-size:24px;color:#fff"></i>
+      </div>
+      <div style="flex:1">
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:3px">
+          <p style="font-size:14px;font-weight:600;color:var(--purple-dark)">Fotografar comprovante</p>
+          <span style="background:var(--purple);color:#fff;font-size:9px;font-weight:700;padding:2px 7px;border-radius:99px;letter-spacing:.3px">IA</span>
+        </div>
+        <p style="font-size:12px;color:var(--purple-mid)">A IA lê o comprovante e preenche tudo</p>
+      </div>
+      <i class="ti ti-chevron-right" style="font-size:18px;color:var(--purple)"></i>
+    </div>
+    <p style="font-size:10px;color:var(--text3);text-align:center;margin-bottom:20px">Você sempre confirma antes de salvar</p>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     S6m — DIGITAR MANUALMENTE (teclado numérico)
+══════════════════════════════════════════ -->
+<div class="screen" id="s6m">
+  <div class="status-bar"><span>9:41</span><span><i class="ti ti-wifi"></i> <i class="ti ti-battery-2"></i></span></div>
+  <div style="padding:12px 20px 8px;flex-shrink:0;display:flex;align-items:center;gap:12px">
+    <button onclick="go('s6')" style="background:none;border:none;cursor:pointer;padding:0;color:var(--text2)"><i class="ti ti-arrow-left" style="font-size:20px"></i></button>
+    <h2>Digitar despesa</h2>
+  </div>
+  <div class="content" style="padding:0 20px">
+    <div style="text-align:center;padding:18px 0 12px">
+      <p style="font-size:12px;color:var(--text3);margin-bottom:8px;font-weight:500">Quanto gastou?</p>
+      <div style="display:flex;align-items:center;justify-content:center;gap:4px">
+        <span style="font-size:18px;color:var(--text2);font-weight:600">R$</span>
+        <span style="font-size:46px;font-weight:700;color:var(--text)" id="kp-display">45</span>
+        <span style="font-size:18px;color:var(--text2);font-weight:600">,00</span>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:14px">
+      <button class="btn btn-secondary" style="padding:16px;font-size:19px;font-weight:600;border-radius:12px" onclick="kpPress('1')">1</button>
+      <button class="btn btn-secondary" style="padding:16px;font-size:19px;font-weight:600;border-radius:12px" onclick="kpPress('2')">2</button>
+      <button class="btn btn-secondary" style="padding:16px;font-size:19px;font-weight:600;border-radius:12px" onclick="kpPress('3')">3</button>
+      <button class="btn btn-secondary" style="padding:16px;font-size:19px;font-weight:600;border-radius:12px" onclick="kpPress('4')">4</button>
+      <button class="btn btn-secondary" style="padding:16px;font-size:19px;font-weight:600;border-radius:12px" onclick="kpPress('5')">5</button>
+      <button class="btn btn-secondary" style="padding:16px;font-size:19px;font-weight:600;border-radius:12px" onclick="kpPress('6')">6</button>
+      <button class="btn btn-secondary" style="padding:16px;font-size:19px;font-weight:600;border-radius:12px" onclick="kpPress('7')">7</button>
+      <button class="btn btn-secondary" style="padding:16px;font-size:19px;font-weight:600;border-radius:12px" onclick="kpPress('8')">8</button>
+      <button class="btn btn-secondary" style="padding:16px;font-size:19px;font-weight:600;border-radius:12px" onclick="kpPress('9')">9</button>
+      <button class="btn btn-secondary" style="padding:16px;font-size:16px;border-radius:12px" onclick="kpPress(',')">,'</button>
+      <button class="btn btn-secondary" style="padding:16px;font-size:19px;font-weight:600;border-radius:12px" onclick="kpPress('0')">0</button>
+      <button class="btn btn-secondary" style="padding:16px;border-radius:12px" onclick="kpPress('⌫')"><i class="ti ti-backspace" style="font-size:19px"></i></button>
+    </div>
+    <p style="font-size:12px;color:var(--text2);margin-bottom:8px;font-weight:600">Categoria</p>
+    <div class="cat-grid" id="cat-grid" style="margin-bottom:12px">
+      <div class="cat-item sel" onclick="selCat(this)"><i class="ti ti-tools-kitchen-2"></i><span>Alimentação</span></div>
+      <div class="cat-item" onclick="selCat(this)"><i class="ti ti-car"></i><span>Transporte</span></div>
+      <div class="cat-item" onclick="selCat(this)"><i class="ti ti-heart-rate-monitor"></i><span>Saúde</span></div>
+      <div class="cat-item" onclick="selCat(this)"><i class="ti ti-device-gamepad-2"></i><span>Lazer</span></div>
+      <div class="cat-item" onclick="selCat(this)"><i class="ti ti-home"></i><span>Moradia</span></div>
+      <div class="cat-item" onclick="selCat(this)"><i class="ti ti-shopping-bag"></i><span>Compras</span></div>
+      <div class="cat-item" onclick="selCat(this)"><i class="ti ti-school"></i><span>Educação</span></div>
+      <div class="cat-item" onclick="selCat(this)"><i class="ti ti-dots"></i><span>Outros</span></div>
+    </div>
+    <input class="inp" placeholder="Descrição (opcional) — Ex: almoço no trabalho" style="margin-bottom:12px">
+    <button class="btn btn-primary" onclick="go('s7')" style="margin-bottom:20px">Registrar despesa</button>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     S6v — FALAR DESPESA (voz simulada)
+══════════════════════════════════════════ -->
+<div class="screen" id="s6v">
+  <div class="status-bar"><span>9:41</span><span><i class="ti ti-wifi"></i> <i class="ti ti-battery-2"></i></span></div>
+  <div style="padding:12px 20px 8px;flex-shrink:0;display:flex;align-items:center;gap:12px">
+    <button onclick="go('s6')" style="background:none;border:none;cursor:pointer;padding:0;color:var(--text2)"><i class="ti ti-arrow-left" style="font-size:20px"></i></button>
+    <h2>Falar despesa</h2>
+  </div>
+  <div class="content" style="padding:0 24px;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100%">
+
+    <!-- Estado 1: aguardando fala -->
+    <div id="voice-idle" style="display:flex;flex-direction:column;align-items:center;width:100%">
+      <!-- Anel animado do microfone -->
+      <div style="position:relative;width:110px;height:110px;margin-bottom:24px">
+        <div id="voice-ring" style="position:absolute;inset:-10px;border-radius:50%;border:2.5px solid var(--green-light);animation:pulse-ring 1.6s ease-out infinite;opacity:0"></div>
+        <div style="width:110px;height:110px;border-radius:50%;background:var(--green-light);display:flex;align-items:center;justify-content:center">
+          <i class="ti ti-microphone" style="font-size:44px;color:var(--green)"></i>
+        </div>
+      </div>
+      <h3 style="font-size:17px;margin-bottom:8px;text-align:center">Fale sua despesa</h3>
+      <p style="font-size:13px;color:var(--text2);text-align:center;margin-bottom:24px;line-height:1.6">Toque no microfone e diga algo como:<br><strong style="color:var(--text)">"Gastei 45 reais no almoço"</strong></p>
+      <!-- Exemplos -->
+      <div style="width:100%;display:flex;flex-direction:column;gap:8px;margin-bottom:28px">
+        <div style="background:var(--surface);border-radius:12px;padding:10px 14px;display:flex;align-items:center;gap:10px">
+          <i class="ti ti-quote" style="font-size:14px;color:var(--text3);flex-shrink:0"></i>
+          <p style="font-size:12px;color:var(--text2)">"Paguei 120 reais de luz"</p>
+        </div>
+        <div style="background:var(--surface);border-radius:12px;padding:10px 14px;display:flex;align-items:center;gap:10px">
+          <i class="ti ti-quote" style="font-size:14px;color:var(--text3);flex-shrink:0"></i>
+          <p style="font-size:12px;color:var(--text2)">"Farmácia, trinta e dois reais"</p>
+        </div>
+        <div style="background:var(--surface);border-radius:12px;padding:10px 14px;display:flex;align-items:center;gap:10px">
+          <i class="ti ti-quote" style="font-size:14px;color:var(--text3);flex-shrink:0"></i>
+          <p style="font-size:12px;color:var(--text2)">"Gasolina, duzentos reais"</p>
+        </div>
+      </div>
+      <!-- Botão de gravar (simula escuta) -->
+      <button onclick="startVoice()" style="width:72px;height:72px;border-radius:50%;background:var(--green);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;margin-bottom:16px">
+        <i class="ti ti-microphone" style="font-size:30px;color:#fff"></i>
+      </button>
+      <p style="font-size:11px;color:var(--text3)">Toque para falar</p>
+    </div>
+
+    <!-- Estado 2: escutando -->
+    <div id="voice-listening" style="display:none;flex-direction:column;align-items:center;width:100%">
+      <div style="position:relative;width:110px;height:110px;margin-bottom:24px">
+        <div style="position:absolute;inset:-12px;border-radius:50%;border:3px solid var(--green);animation:pulse-ring 1s ease-out infinite"></div>
+        <div style="position:absolute;inset:-24px;border-radius:50%;border:2px solid var(--green-light);animation:pulse-ring 1s ease-out .3s infinite"></div>
+        <div style="width:110px;height:110px;border-radius:50%;background:var(--green);display:flex;align-items:center;justify-content:center">
+          <i class="ti ti-microphone" style="font-size:44px;color:#fff"></i>
+        </div>
+      </div>
+      <h3 style="font-size:17px;margin-bottom:8px">Ouvindo...</h3>
+      <p style="font-size:13px;color:var(--text2);margin-bottom:28px">Fale sua despesa agora</p>
+      <!-- Ondas de áudio simuladas -->
+      <div style="display:flex;align-items:center;gap:4px;height:40px;margin-bottom:28px" id="wave-bars">
+        <div style="width:4px;border-radius:2px;background:var(--green);animation:wave 0.6s ease-in-out infinite;height:12px"></div>
+        <div style="width:4px;border-radius:2px;background:var(--green);animation:wave 0.6s ease-in-out .1s infinite;height:20px"></div>
+        <div style="width:4px;border-radius:2px;background:var(--green);animation:wave 0.6s ease-in-out .2s infinite;height:32px"></div>
+        <div style="width:4px;border-radius:2px;background:var(--green);animation:wave 0.6s ease-in-out .3s infinite;height:24px"></div>
+        <div style="width:4px;border-radius:2px;background:var(--green);animation:wave 0.6s ease-in-out .4s infinite;height:36px"></div>
+        <div style="width:4px;border-radius:2px;background:var(--green);animation:wave 0.6s ease-in-out .5s infinite;height:18px"></div>
+        <div style="width:4px;border-radius:2px;background:var(--green);animation:wave 0.6s ease-in-out .6s infinite;height:28px"></div>
+        <div style="width:4px;border-radius:2px;background:var(--green);animation:wave 0.6s ease-in-out .7s infinite;height:14px"></div>
+        <div style="width:4px;border-radius:2px;background:var(--green);animation:wave 0.6s ease-in-out .8s infinite;height:30px"></div>
+        <div style="width:4px;border-radius:2px;background:var(--green);animation:wave 0.6s ease-in-out .9s infinite;height:20px"></div>
+      </div>
+      <button onclick="stopVoice()" style="background:var(--surface);border:1px solid var(--border);border-radius:99px;padding:10px 22px;font-size:13px;cursor:pointer;font-family:inherit;color:var(--text2)">Parar</button>
+    </div>
+
+    <!-- Estado 3: resultado de voz -->
+    <div id="voice-result" style="display:none;flex-direction:column;width:100%">
+      <div style="background:var(--green-light);border-radius:14px;padding:13px 14px;margin-bottom:16px;display:flex;align-items:center;gap:10px">
+        <i class="ti ti-check" style="font-size:18px;color:var(--green);flex-shrink:0"></i>
+        <div>
+          <p style="font-size:11px;color:var(--green-mid);font-weight:600">Entendido pela IA</p>
+          <p style="font-size:13px;color:var(--green-mid);font-style:italic">"Gastei 45 reais no almoço"</p>
+        </div>
+      </div>
+      <!-- Lançamento sugerido -->
+      <p style="font-size:12px;font-weight:600;color:var(--text2);margin-bottom:10px">Lançamento sugerido pela IA</p>
+      <div class="card" style="margin-bottom:14px">
+        <div style="display:flex;justify-content:space-between;align-items:center;padding-bottom:10px;border-bottom:.5px solid var(--border);margin-bottom:10px">
+          <span style="font-size:13px;color:var(--text2)">Valor</span>
+          <span style="font-size:18px;font-weight:700;color:var(--coral)">R$ 45,00</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;padding-bottom:10px;border-bottom:.5px solid var(--border);margin-bottom:10px">
+          <span style="font-size:13px;color:var(--text2)">Categoria</span>
+          <span style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:600;color:var(--text)"><i class="ti ti-tools-kitchen-2" style="font-size:15px;color:var(--purple)"></i>Alimentação</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;padding-bottom:10px;border-bottom:.5px solid var(--border);margin-bottom:10px">
+          <span style="font-size:13px;color:var(--text2)">Descrição</span>
+          <span style="font-size:13px;font-weight:600;color:var(--text)">Almoço</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <span style="font-size:13px;color:var(--text2)">Data</span>
+          <span style="font-size:13px;font-weight:600;color:var(--text)">Hoje, 21/05</span>
+        </div>
+      </div>
+      <div style="background:var(--purple-light);border-radius:12px;padding:10px 13px;margin-bottom:16px;display:flex;align-items:center;gap:8px">
+        <i class="ti ti-info-circle" style="font-size:15px;color:var(--purple);flex-shrink:0"></i>
+        <p style="font-size:11px;color:var(--purple-mid)">Revise antes de confirmar. Você pode editar qualquer campo.</p>
+      </div>
+      <button class="btn btn-primary" onclick="go('s7')" style="margin-bottom:8px">Confirmar lançamento</button>
+      <button class="btn btn-secondary" onclick="resetVoice()" style="margin-bottom:20px">Editar ou falar novamente</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     S6p — FOTO: CÂMERA SIMULADA
+══════════════════════════════════════════ -->
+<div class="screen" id="s6p">
+  <div class="status-bar" style="background:#000;color:#fff"><span>9:41</span><span><i class="ti ti-wifi"></i> <i class="ti ti-battery-2"></i></span></div>
+  <!-- Viewfinder simulado -->
+  <div style="flex:1;background:#111;position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden">
+    <!-- Grade do viewfinder -->
+    <div style="position:absolute;inset:0;display:grid;grid-template-columns:1fr 1fr 1fr;grid-template-rows:1fr 1fr 1fr;pointer-events:none">
+      <div style="border-right:.5px solid rgba(255,255,255,.2);border-bottom:.5px solid rgba(255,255,255,.2)"></div>
+      <div style="border-right:.5px solid rgba(255,255,255,.2);border-bottom:.5px solid rgba(255,255,255,.2)"></div>
+      <div style="border-bottom:.5px solid rgba(255,255,255,.2)"></div>
+      <div style="border-right:.5px solid rgba(255,255,255,.2);border-bottom:.5px solid rgba(255,255,255,.2)"></div>
+      <div style="border-right:.5px solid rgba(255,255,255,.2);border-bottom:.5px solid rgba(255,255,255,.2)"></div>
+      <div style="border-bottom:.5px solid rgba(255,255,255,.2)"></div>
+      <div style="border-right:.5px solid rgba(255,255,255,.2)"></div>
+      <div style="border-right:.5px solid rgba(255,255,255,.2)"></div>
+      <div></div>
+    </div>
+    <!-- Canto de foco -->
+    <div style="width:200px;height:130px;position:relative;margin-bottom:16px">
+      <div style="position:absolute;top:0;left:0;width:22px;height:22px;border-top:2.5px solid #fff;border-left:2.5px solid #fff;border-radius:3px 0 0 0"></div>
+      <div style="position:absolute;top:0;right:0;width:22px;height:22px;border-top:2.5px solid #fff;border-right:2.5px solid #fff;border-radius:0 3px 0 0"></div>
+      <div style="position:absolute;bottom:0;left:0;width:22px;height:22px;border-bottom:2.5px solid #fff;border-left:2.5px solid #fff;border-radius:0 0 0 3px"></div>
+      <div style="position:absolute;bottom:0;right:0;width:22px;height:22px;border-bottom:2.5px solid #fff;border-right:2.5px solid #fff;border-radius:0 0 3px 0"></div>
+      <!-- Linha de scan animada -->
+      <div style="position:absolute;left:4px;right:4px;height:1.5px;background:rgba(127,119,221,.8);animation:scan-line 2s ease-in-out infinite"></div>
+    </div>
+    <p style="color:rgba(255,255,255,.8);font-size:13px;text-align:center">Aponte para o comprovante</p>
+    <!-- Badge IA -->
+    <div style="position:absolute;top:16px;left:50%;transform:translateX(-50%);background:rgba(127,119,221,.9);border-radius:99px;padding:4px 14px;display:flex;align-items:center;gap:6px">
+      <i class="ti ti-sparkles" style="font-size:12px;color:#fff"></i>
+      <span style="font-size:11px;font-weight:700;color:#fff;letter-spacing:.3px">IA ATIVA</span>
+    </div>
+    <!-- Botão voltar -->
+    <button onclick="go('s6')" style="position:absolute;top:14px;left:16px;background:rgba(0,0,0,.4);border:none;border-radius:99px;width:34px;height:34px;display:flex;align-items:center;justify-content:center;cursor:pointer">
+      <i class="ti ti-arrow-left" style="font-size:18px;color:#fff"></i>
+    </button>
+  </div>
+  <!-- Controles da câmera -->
+  <div style="background:#000;padding:20px 32px 28px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0">
+    <button onclick="go('s6')" style="background:rgba(255,255,255,.1);border:none;border-radius:50%;width:44px;height:44px;display:flex;align-items:center;justify-content:center;cursor:pointer">
+      <i class="ti ti-x" style="font-size:20px;color:#fff"></i>
+    </button>
+    <!-- Botão disparar -->
+    <button onclick="go('s6pa')" style="width:72px;height:72px;border-radius:50%;background:#fff;border:4px solid rgba(255,255,255,.3);cursor:pointer;display:flex;align-items:center;justify-content:center">
+      <div style="width:58px;height:58px;border-radius:50%;background:#fff;border:2px solid #ddd"></div>
+    </button>
+    <button style="background:rgba(255,255,255,.1);border:none;border-radius:50%;width:44px;height:44px;display:flex;align-items:center;justify-content:center;cursor:pointer">
+      <i class="ti ti-bolt" style="font-size:20px;color:#fff"></i>
+    </button>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     S6pa — FOTO: ANALISANDO COM IA
+══════════════════════════════════════════ -->
+<div class="screen" id="s6pa">
+  <div class="status-bar"><span>9:41</span><span><i class="ti ti-wifi"></i> <i class="ti ti-battery-2"></i></span></div>
+  <div class="content" style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100%;padding:32px 28px">
+    <!-- Preview simulado do comprovante -->
+    <div style="width:200px;height:130px;background:var(--surface);border-radius:12px;border:.5px solid var(--border);margin-bottom:28px;display:flex;flex-direction:column;justify-content:space-between;padding:12px;position:relative;overflow:hidden">
+      <!-- Conteúdo simulado de nota fiscal -->
+      <div>
+        <div style="height:8px;background:#ddd;border-radius:4px;width:70%;margin-bottom:5px"></div>
+        <div style="height:6px;background:#e8e8e8;border-radius:4px;width:90%;margin-bottom:3px"></div>
+        <div style="height:6px;background:#e8e8e8;border-radius:4px;width:60%;margin-bottom:10px"></div>
+        <div style="height:6px;background:#e8e8e8;border-radius:4px;width:85%;margin-bottom:3px"></div>
+        <div style="height:6px;background:#e8e8e8;border-radius:4px;width:75%;margin-bottom:3px"></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div style="height:7px;background:#ccc;border-radius:4px;width:40%"></div>
+        <div style="height:10px;background:var(--purple);border-radius:4px;width:30%"></div>
+      </div>
+      <!-- Linha de scan sobre o comprovante -->
+      <div style="position:absolute;left:0;right:0;height:2px;background:rgba(127,119,221,.7);animation:scan-line 1.5s ease-in-out infinite"></div>
+    </div>
+    <!-- Spinner e texto -->
+    <div style="width:52px;height:52px;border-radius:50%;border:3px solid var(--purple-light);border-top-color:var(--purple);animation:spin 0.9s linear infinite;margin-bottom:20px"></div>
+    <h3 style="font-size:17px;text-align:center;margin-bottom:8px">Analisando sua despesa com IA...</h3>
+    <p style="font-size:13px;color:var(--text2);text-align:center;margin-bottom:24px;line-height:1.6">Identificando valor, estabelecimento<br>e categoria automaticamente</p>
+    <!-- Steps de progresso -->
+    <div style="width:100%;display:flex;flex-direction:column;gap:8px">
+      <div style="display:flex;align-items:center;gap:10px">
+        <div style="width:20px;height:20px;border-radius:50%;background:var(--green);display:flex;align-items:center;justify-content:center;flex-shrink:0"><i class="ti ti-check" style="font-size:11px;color:#fff"></i></div>
+        <p style="font-size:12px;color:var(--green-mid);font-weight:600">Imagem capturada</p>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px">
+        <div style="width:20px;height:20px;border-radius:50%;background:var(--green);display:flex;align-items:center;justify-content:center;flex-shrink:0"><i class="ti ti-check" style="font-size:11px;color:#fff"></i></div>
+        <p style="font-size:12px;color:var(--green-mid);font-weight:600">Texto extraído</p>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px">
+        <div style="width:20px;height:20px;border-radius:50%;border:2px solid var(--purple);display:flex;align-items:center;justify-content:center;flex-shrink:0;animation:spin 1s linear infinite"></div>
+        <p style="font-size:12px;color:var(--text2)">Classificando categoria...</p>
+      </div>
+    </div>
+    <!-- Auto-avança após delay simulado -->
+    <button onclick="go('s6pc')" style="margin-top:28px;background:none;border:none;font-size:12px;color:var(--text3);cursor:pointer;font-family:inherit">Pular para resultado →</button>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     S6pc — FOTO: CONFIRMAÇÃO DO RESULTADO DA IA
+══════════════════════════════════════════ -->
+<div class="screen" id="s6pc">
+  <div class="status-bar"><span>9:41</span><span><i class="ti ti-wifi"></i> <i class="ti ti-battery-2"></i></span></div>
+  <div style="padding:12px 20px 8px;flex-shrink:0;display:flex;align-items:center;gap:12px">
+    <button onclick="go('s6p')" style="background:none;border:none;cursor:pointer;padding:0;color:var(--text2)"><i class="ti ti-arrow-left" style="font-size:20px"></i></button>
+    <div>
+      <h2>Resultado da IA</h2>
+    </div>
+    <span class="badge badge-purple" style="margin-left:auto"><i class="ti ti-sparkles" style="font-size:10px"></i> IA</span>
+  </div>
+  <div class="content" style="padding:0 18px">
+    <!-- Confiança da IA -->
+    <div style="background:var(--green-light);border-radius:14px;padding:12px 14px;margin-bottom:14px;display:flex;align-items:center;gap:10px">
+      <i class="ti ti-rosette-discount-check" style="font-size:22px;color:var(--green);flex-shrink:0"></i>
+      <div>
+        <p style="font-size:12px;font-weight:600;color:var(--green-mid)">Comprovante lido com sucesso</p>
+        <p style="font-size:11px;color:var(--green-mid)">Confiança da IA: 94% — revise antes de confirmar</p>
+      </div>
+    </div>
+
+    <!-- Thumbnail do comprovante -->
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">
+      <div style="width:56px;height:72px;background:var(--surface);border-radius:8px;border:.5px solid var(--border);display:flex;flex-direction:column;justify-content:space-between;padding:6px;flex-shrink:0">
+        <div style="height:5px;background:#ddd;border-radius:2px;width:80%"></div>
+        <div style="height:4px;background:#e8e8e8;border-radius:2px;width:90%"></div>
+        <div style="height:4px;background:#e8e8e8;border-radius:2px;width:60%"></div>
+        <div style="height:4px;background:#e8e8e8;border-radius:2px;width:75%"></div>
+        <div style="height:6px;background:var(--purple);border-radius:2px;width:50%;align-self:flex-end"></div>
+      </div>
+      <div>
+        <p style="font-size:13px;font-weight:600;color:var(--text)">Comprovante analisado</p>
+        <p style="font-size:12px;color:var(--text2)">Restaurante Bom Sabor</p>
+        <p style="font-size:11px;color:var(--text3)">Hoje, 21/05/2026 · 12:37</p>
+      </div>
+    </div>
+
+    <!-- Campos extraídos -->
+    <p style="font-size:12px;font-weight:600;color:var(--text2);margin-bottom:10px">Dados extraídos — toque para editar</p>
+    <div class="card" style="margin-bottom:14px;padding:0">
+      <!-- Valor -->
+      <div style="padding:14px 16px;border-bottom:.5px solid var(--border);display:flex;justify-content:space-between;align-items:center">
+        <div style="display:flex;align-items:center;gap:8px">
+          <i class="ti ti-currency-dollar" style="font-size:16px;color:var(--text3)"></i>
+          <span style="font-size:13px;color:var(--text2)">Valor encontrado</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="font-size:18px;font-weight:700;color:var(--coral)">R$ 45,90</span>
+          <i class="ti ti-pencil" style="font-size:14px;color:var(--text3)"></i>
+        </div>
+      </div>
+      <!-- Categoria -->
+      <div style="padding:14px 16px;border-bottom:.5px solid var(--border);display:flex;justify-content:space-between;align-items:center">
+        <div style="display:flex;align-items:center;gap:8px">
+          <i class="ti ti-tag" style="font-size:16px;color:var(--text3)"></i>
+          <span style="font-size:13px;color:var(--text2)">Categoria sugerida</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="display:flex;align-items:center;gap:5px;font-size:13px;font-weight:600;color:var(--text)"><i class="ti ti-tools-kitchen-2" style="font-size:14px;color:var(--purple)"></i>Alimentação</span>
+          <i class="ti ti-pencil" style="font-size:14px;color:var(--text3)"></i>
+        </div>
+      </div>
+      <!-- Local -->
+      <div style="padding:14px 16px;border-bottom:.5px solid var(--border);display:flex;justify-content:space-between;align-items:center">
+        <div style="display:flex;align-items:center;gap:8px">
+          <i class="ti ti-map-pin" style="font-size:16px;color:var(--text3)"></i>
+          <span style="font-size:13px;color:var(--text2)">Local</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="font-size:13px;font-weight:600;color:var(--text)">Restaurante Bom Sabor</span>
+          <i class="ti ti-pencil" style="font-size:14px;color:var(--text3)"></i>
+        </div>
+      </div>
+      <!-- Data -->
+      <div style="padding:14px 16px;display:flex;justify-content:space-between;align-items:center">
+        <div style="display:flex;align-items:center;gap:8px">
+          <i class="ti ti-calendar" style="font-size:16px;color:var(--text3)"></i>
+          <span style="font-size:13px;color:var(--text2)">Data</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="font-size:13px;font-weight:600;color:var(--text)">Hoje, 21/05/2026</span>
+          <i class="ti ti-pencil" style="font-size:14px;color:var(--text3)"></i>
+        </div>
+      </div>
+    </div>
+
+    <!-- Aviso de confirmação -->
+    <div style="background:var(--purple-light);border-radius:12px;padding:10px 13px;margin-bottom:16px;display:flex;align-items:center;gap:8px">
+      <i class="ti ti-info-circle" style="font-size:15px;color:var(--purple);flex-shrink:0"></i>
+      <p style="font-size:11px;color:var(--purple-mid)">A IA pode cometer erros. Verifique os dados antes de confirmar.</p>
+    </div>
+
+    <!-- Botões de ação -->
+    <button class="btn btn-primary" onclick="go('s7')" style="margin-bottom:8px">
+      <i class="ti ti-check"></i> Confirmar lançamento
+    </button>
+    <button class="btn btn-secondary" onclick="go('s6m')" style="margin-bottom:8px">
+      <i class="ti ti-pencil"></i> Editar manualmente
+    </button>
+    <button class="btn btn-secondary" onclick="go('s6p')" style="margin-bottom:20px">
+      <i class="ti ti-camera"></i> Tirar nova foto
+    </button>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     S7 — PÓS-DESPESA / IA  (texto curto)
+══════════════════════════════════════════ -->
+<div class="screen" id="s7">
+  <div class="status-bar"><span>9:41</span><span><i class="ti ti-wifi"></i> <i class="ti ti-battery-2"></i></span></div>
+  <div class="content" style="padding:24px;display:flex;flex-direction:column;justify-content:center;min-height:100%">
+    <!-- Confirmação -->
+    <div style="background:var(--green-light);border-radius:20px;width:60px;height:60px;display:flex;align-items:center;justify-content:center;margin:0 auto 18px">
+      <i class="ti ti-check" style="font-size:30px;color:var(--green)"></i>
+    </div>
+    <h2 style="text-align:center;margin-bottom:4px">Despesa registrada!</h2>
+    <p style="text-align:center;margin-bottom:22px">Limite restante hoje: <strong style="color:var(--coral)">R$ 23</strong></p>
+
+    <!-- MELHORIA 7: texto da IA máximo 2 linhas -->
+    <div style="background:var(--purple-light);border-radius:16px;padding:16px;margin-bottom:14px">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+        <i class="ti ti-robot" style="font-size:17px;color:var(--purple)"></i>
+        <span style="font-size:12px;font-weight:600;color:var(--purple-mid)">Insight do consultor</span>
+      </div>
+      <!-- Texto reduzido para max 2 linhas -->
+      <p style="font-size:14px;color:var(--purple-dark);line-height:1.5;margin-bottom:14px">Alimentação representa <strong>38% da sua renda disponível</strong>. Quer ver como reduzir?</p>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <button onclick="go('s8')" style="background:var(--purple);color:#fff;border:none;border-radius:10px;padding:11px;font-size:13px;cursor:pointer;font-family:inherit;font-weight:600;text-align:left">Ver dicas para economizar</button>
+        <button onclick="go('s8')" style="background:#fff;color:var(--purple-mid);border:1.5px solid var(--purple);border-radius:10px;padding:11px;font-size:13px;cursor:pointer;font-family:inherit;text-align:left">Esse gasto foi pontual</button>
+        <button onclick="go('s8')" style="background:var(--surface);color:var(--text2);border:.5px solid var(--border);border-radius:10px;padding:11px;font-size:13px;cursor:pointer;font-family:inherit;text-align:left">Agora não</button>
+      </div>
+    </div>
+    <!-- Recompensa -->
+    <div style="background:var(--amber-light);border-radius:14px;padding:12px 14px;display:flex;align-items:center;gap:10px">
+      <i class="ti ti-trophy" style="font-size:24px;color:var(--amber-mid)"></i>
+      <div>
+        <p style="font-size:12px;font-weight:700;color:var(--amber-mid)">Conquista desbloqueada!</p>
+        <p style="font-size:11px;color:#a06010">Controle ativado — você lançou sua 1ª despesa 🎉</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     S8 — MEU DIA FINANCEIRO  (barras com valores)
+══════════════════════════════════════════ -->
+<div class="screen" id="s8">
+  <div class="status-bar"><span>9:41</span><span><i class="ti ti-wifi"></i> <i class="ti ti-battery-2"></i></span></div>
+  <div style="padding:12px 20px 8px;flex-shrink:0;display:flex;align-items:center;justify-content:space-between">
+    <div style="display:flex;align-items:center;gap:12px">
+      <button onclick="go('s5')" style="background:none;border:none;cursor:pointer;padding:0;color:var(--text2)"><i class="ti ti-arrow-left" style="font-size:20px"></i></button>
+      <h2>Meu dia financeiro</h2>
+    </div>
+    <span style="font-size:12px;color:var(--text3)">Qui, 21 mai</span>
+  </div>
+  <div class="content" style="padding:0 16px">
+    <!-- Resumo do dia -->
+    <div style="background:var(--purple-light);border-radius:16px;padding:14px;margin-bottom:10px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <span style="font-size:12px;font-weight:600;color:var(--purple-mid)">Limite saudável hoje</span>
+        <span class="badge badge-purple">R$ 23 restantes</span>
+      </div>
+      <div class="progress-track"><div class="progress-fill progress-purple" style="width:66%"></div></div>
+      <div style="display:flex;justify-content:space-between;margin-top:5px">
+        <span style="font-size:11px;color:var(--text3)">Gasto: R$ 45</span>
+        <span style="font-size:11px;color:var(--text3)">Limite: R$ 68</span>
+      </div>
+    </div>
+
+    <!-- MELHORIA 8: gráfico semanal com valores visíveis nas barras -->
+    <p style="font-size:13px;font-weight:600;margin-bottom:10px">Gastos desta semana</p>
+    <div style="background:var(--surface);border-radius:16px;padding:14px;margin-bottom:10px">
+      <div class="bar-chart">
+        <div class="bar-col">
+          <span class="bar-val">R$38</span>
+          <div class="bar-fill" style="height:38px;background:var(--purple-light)"></div>
+          <span class="bar-day">Seg</span>
+        </div>
+        <div class="bar-col">
+          <span class="bar-val">R$92</span>
+          <div class="bar-fill" style="height:62px;background:var(--coral-light)"></div>
+          <span class="bar-day">Ter</span>
+        </div>
+        <div class="bar-col">
+          <span class="bar-val">R$55</span>
+          <div class="bar-fill" style="height:48px;background:var(--purple-light)"></div>
+          <span class="bar-day">Qua</span>
+        </div>
+        <div class="bar-col">
+          <span class="bar-val" style="color:var(--purple);font-weight:700">R$45</span>
+          <div class="bar-fill" style="height:32px;background:var(--purple)"></div>
+          <span class="bar-day" style="color:var(--purple);font-weight:700">Hj</span>
+        </div>
+        <div class="bar-col">
+          <span class="bar-val" style="color:var(--border)">—</span>
+          <div class="bar-fill" style="height:48px;background:var(--border);border:1.5px dashed #ccc"></div>
+          <span class="bar-day">Sex</span>
+        </div>
+        <div class="bar-col">
+          <span class="bar-val" style="color:var(--border)">—</span>
+          <div class="bar-fill" style="height:48px;background:var(--border);border:1.5px dashed #ccc"></div>
+          <span class="bar-day">Sáb</span>
+        </div>
+        <div class="bar-col">
+          <span class="bar-val" style="color:var(--border)">—</span>
+          <div class="bar-fill" style="height:48px;background:var(--border);border:1.5px dashed #ccc"></div>
+          <span class="bar-day">Dom</span>
+        </div>
+      </div>
+      <div style="display:flex;justify-content:space-between;margin-top:10px;padding-top:10px;border-top:.5px solid var(--border)">
+        <span style="font-size:11px;color:var(--text3)">Total semana</span>
+        <span style="font-size:13px;font-weight:700;color:var(--text)">R$ 230 <span style="font-size:10px;color:var(--green);font-weight:600">↓ abaixo do limite</span></span>
+      </div>
+    </div>
+
+    <!-- Lançamentos do dia -->
+    <p style="font-size:13px;font-weight:600;margin-bottom:8px">Lançamentos de hoje</p>
+    <div class="card" style="margin-bottom:8px;padding:12px 14px">
+      <div style="display:flex;align-items:center;gap:10px">
+        <div style="background:var(--purple-light);border-radius:10px;width:36px;height:36px;display:flex;align-items:center;justify-content:center;flex-shrink:0"><i class="ti ti-tools-kitchen-2" style="font-size:17px;color:var(--purple)"></i></div>
+        <div style="flex:1"><p style="font-size:13px;font-weight:600;color:var(--text)">Almoço</p><p style="font-size:11px">Alimentação · 12:34</p></div>
+        <span style="font-size:14px;font-weight:700;color:var(--coral)">-R$ 45</span>
+      </div>
+    </div>
+    <div class="card" style="margin-bottom:14px;padding:12px 14px">
+      <div style="display:flex;align-items:center;gap:10px">
+        <div style="background:var(--green-light);border-radius:10px;width:36px;height:36px;display:flex;align-items:center;justify-content:center;flex-shrink:0"><i class="ti ti-arrow-bar-up" style="font-size:17px;color:var(--green)"></i></div>
+        <div style="flex:1"><p style="font-size:13px;font-weight:600;color:var(--text)">Salário</p><p style="font-size:11px">Renda · 08:00</p></div>
+        <span style="font-size:14px;font-weight:700;color:var(--green)">+R$ 3.500</span>
+      </div>
+    </div>
+    <button class="btn btn-primary" onclick="go('s6')" style="margin-bottom:20px"><i class="ti ti-plus"></i> Lançar novo gasto</button>
+  </div>
+  <nav class="bottom-nav">
+    <button class="nav-item active" onclick="go('s5')"><i class="ti ti-home"></i><span>Início</span></button>
+    <button class="nav-item" onclick="go('s9')"><i class="ti ti-dna-2"></i><span>DNA</span></button>
+    <button class="nav-item" onclick="go('s11')"><i class="ti ti-briefcase"></i><span>Oportunidades</span></button>
+    <button class="nav-item" onclick="go('s14')"><i class="ti ti-chart-bar"></i><span>Relatórios</span></button>
+    <button class="nav-item" onclick="go('s15')"><i class="ti ti-user"></i><span>Perfil</span></button>
+  </nav>
+</div>
+
+<!-- ══════════════════════════════════════════
+     S9 — DNA FINANCEIRO  (textos de bloqueio positivos)
+══════════════════════════════════════════ -->
+<div class="screen" id="s9">
+  <div class="status-bar"><span>9:41</span><span><i class="ti ti-wifi"></i> <i class="ti ti-battery-2"></i></span></div>
+  <div style="padding:12px 20px 8px;flex-shrink:0">
+    <h2>Meu DNA Financeiro</h2>
+    <div style="margin-top:10px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+        <span style="font-size:12px;color:var(--text2)">Perfil <strong style="color:var(--purple)">42%</strong> completo</span>
+        <span class="badge badge-purple">Nível 1</span>
+      </div>
+      <div class="progress-track"><div class="progress-fill progress-purple" style="width:42%"></div></div>
+      <p style="font-size:11px;color:var(--text3);margin-top:4px">Complete para liberar o plano avançado e mais oportunidades</p>
+    </div>
+  </div>
+  <div class="content" style="padding:8px 16px">
+    <!-- Concluído -->
+    <div class="card" style="margin-bottom:8px;padding:14px">
+      <div style="display:flex;align-items:center;justify-content:space-between">
+        <div style="display:flex;align-items:center;gap:10px">
+          <div style="background:var(--green-light);width:34px;height:34px;border-radius:9px;display:flex;align-items:center;justify-content:center;flex-shrink:0"><i class="ti ti-check" style="font-size:16px;color:var(--green)"></i></div>
+          <div><p style="font-size:13px;font-weight:600;color:var(--text)">Etapa 1 — Quem é você</p><p style="font-size:11px">Dados básicos completos</p></div>
+        </div>
+        <span class="badge badge-green">Concluído</span>
+      </div>
+    </div>
+    <div class="card" style="margin-bottom:8px;padding:14px">
+      <div style="display:flex;align-items:center;justify-content:space-between">
+        <div style="display:flex;align-items:center;gap:10px">
+          <div style="background:var(--green-light);width:34px;height:34px;border-radius:9px;display:flex;align-items:center;justify-content:center;flex-shrink:0"><i class="ti ti-check" style="font-size:16px;color:var(--green)"></i></div>
+          <div><p style="font-size:13px;font-weight:600;color:var(--text)">Etapa 2 — Sua realidade</p><p style="font-size:11px">Moradia, veículo e família</p></div>
+        </div>
+        <span class="badge badge-green">Concluído</span>
+      </div>
+    </div>
+    <!-- Em andamento -->
+    <div class="card" style="margin-bottom:8px;padding:14px;border:1.5px solid var(--purple)">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+        <div style="display:flex;align-items:center;gap:10px">
+          <div style="background:var(--purple-light);width:34px;height:34px;border-radius:9px;display:flex;align-items:center;justify-content:center;flex-shrink:0"><i class="ti ti-target" style="font-size:16px;color:var(--purple)"></i></div>
+          <div><p style="font-size:13px;font-weight:600;color:var(--text)">Etapa 3 — Seus sonhos</p><p style="font-size:11px">2 de 5 sonhos cadastrados</p></div>
+        </div>
+        <span class="badge badge-purple">Em andamento</span>
+      </div>
+      <div class="progress-track"><div class="progress-fill progress-purple" style="width:40%"></div></div>
+      <button onclick="go('s10')" class="btn btn-primary" style="margin-top:10px;padding:10px;font-size:13px">Completar agora</button>
+    </div>
+    <!-- MELHORIA 9: textos de bloqueio positivos -->
+    <div class="card" style="margin-bottom:8px;padding:14px;opacity:.65">
+      <div style="display:flex;align-items:center;justify-content:space-between">
+        <div style="display:flex;align-items:center;gap:10px">
+          <div style="background:var(--surface);width:34px;height:34px;border-radius:9px;display:flex;align-items:center;justify-content:center;flex-shrink:0"><i class="ti ti-lock" style="font-size:16px;color:var(--text3)"></i></div>
+          <div><p style="font-size:13px;font-weight:600;color:var(--text)">Etapa 4 — Sua capacidade</p><p style="font-size:11px">Complete a etapa 3 para liberar</p></div>
+        </div>
+        <span class="badge badge-gray">Em breve</span>
+      </div>
+    </div>
+    <div class="card" style="margin-bottom:8px;padding:14px;opacity:.65">
+      <div style="display:flex;align-items:center;justify-content:space-between">
+        <div style="display:flex;align-items:center;gap:10px">
+          <div style="background:var(--surface);width:34px;height:34px;border-radius:9px;display:flex;align-items:center;justify-content:center;flex-shrink:0"><i class="ti ti-lock" style="font-size:16px;color:var(--text3)"></i></div>
+          <div><p style="font-size:13px;font-weight:600;color:var(--text)">Etapa 5 — Potencial de renda</p><p style="font-size:11px">Disponível ao avançar no seu plano</p></div>
+        </div>
+        <span class="badge badge-gray">Em breve</span>
+      </div>
+    </div>
+    <div class="card" style="margin-bottom:16px;padding:14px;opacity:.45">
+      <div style="display:flex;align-items:center;justify-content:space-between">
+        <div style="display:flex;align-items:center;gap:10px">
+          <div style="background:var(--surface);width:34px;height:34px;border-radius:9px;display:flex;align-items:center;justify-content:center;flex-shrink:0"><i class="ti ti-crown" style="font-size:16px;color:var(--text3)"></i></div>
+          <div><p style="font-size:13px;font-weight:600;color:var(--text)">Etapa 6 — Plano avançado</p><p style="font-size:11px">Liberado com 80% do perfil completo</p></div>
+        </div>
+        <span class="badge badge-gray">Em breve</span>
+      </div>
+    </div>
+  </div>
+  <nav class="bottom-nav">
+    <button class="nav-item" onclick="go('s5')"><i class="ti ti-home"></i><span>Início</span></button>
+    <button class="nav-item active" onclick="go('s9')"><i class="ti ti-dna-2"></i><span>DNA</span></button>
+    <button class="nav-item" onclick="go('s11')"><i class="ti ti-briefcase"></i><span>Oportunidades</span></button>
+    <button class="nav-item" onclick="go('s14')"><i class="ti ti-chart-bar"></i><span>Relatórios</span></button>
+    <button class="nav-item" onclick="go('s15')"><i class="ti ti-user"></i><span>Perfil</span></button>
+  </nav>
+</div>
+
+<!-- ══════════════════════════════════════════
+     S10 — SONHOS E METAS  (inalterado, nav atualizado)
+══════════════════════════════════════════ -->
+<div class="screen" id="s10">
+  <div class="status-bar"><span>9:41</span><span><i class="ti ti-wifi"></i> <i class="ti ti-battery-2"></i></span></div>
+  <div style="padding:12px 20px 8px;flex-shrink:0;display:flex;align-items:center;justify-content:space-between">
+    <div style="display:flex;align-items:center;gap:12px">
+      <button onclick="go('s9')" style="background:none;border:none;cursor:pointer;padding:0;color:var(--text2)"><i class="ti ti-arrow-left" style="font-size:20px"></i></button>
+      <h2>Sonhos e metas</h2>
+    </div>
+    <button onclick="go('s3')" style="background:var(--purple-light);color:var(--purple-mid);border:none;border-radius:9px;padding:7px 11px;font-size:12px;cursor:pointer;font-family:inherit;font-weight:600"><i class="ti ti-plus" style="font-size:12px"></i> Adicionar</button>
+  </div>
+  <div class="content" style="padding:8px 16px">
+    <div style="background:var(--purple);border-radius:18px;padding:18px;margin-bottom:10px">
+      <span style="font-size:10px;color:rgba(255,255,255,.7);font-weight:600;letter-spacing:.5px">SONHO PRINCIPAL</span>
+      <div style="display:flex;align-items:center;gap:10px;margin:8px 0">
+        <i class="ti ti-car" style="font-size:28px;color:#fff"></i>
+        <div><p style="font-size:16px;font-weight:700;color:#fff">Carro próprio</p><p style="font-size:12px;color:rgba(255,255,255,.7)">Meta: R$ 25.000</p></div>
+      </div>
+      <div style="display:flex;gap:8px;margin-bottom:10px">
+        <div style="flex:1;background:rgba(255,255,255,.15);border-radius:10px;padding:10px;text-align:center">
+          <p style="font-size:16px;font-weight:700;color:#fff">R$ 6.500</p><p style="font-size:10px;color:rgba(255,255,255,.7)">Guardado</p>
+        </div>
+        <div style="flex:1;background:rgba(255,255,255,.15);border-radius:10px;padding:10px;text-align:center">
+          <p style="font-size:16px;font-weight:700;color:#fff">R$ 18.500</p><p style="font-size:10px;color:rgba(255,255,255,.7)">Faltam</p>
+        </div>
+        <div style="flex:1;background:rgba(255,255,255,.15);border-radius:10px;padding:10px;text-align:center">
+          <p style="font-size:16px;font-weight:700;color:#fff">~4 anos</p><p style="font-size:10px;color:rgba(255,255,255,.7)">Prazo</p>
+        </div>
+      </div>
+      <div style="background:rgba(255,255,255,.2);border-radius:99px;height:8px;overflow:hidden;margin-bottom:4px">
+        <div style="background:#fff;height:100%;border-radius:99px;width:26%"></div>
+      </div>
+      <p style="font-size:11px;color:rgba(255,255,255,.7);text-align:right">26% concluído</p>
+    </div>
+    <div class="card" style="margin-bottom:8px;padding:12px 14px">
+      <div style="display:flex;align-items:center;gap:10px">
+        <div style="background:var(--green-light);width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0"><i class="ti ti-piggy-bank" style="font-size:18px;color:var(--green)"></i></div>
+        <div style="flex:1">
+          <p style="font-size:13px;font-weight:600;color:var(--text)">Reserva de emergência</p>
+          <div class="progress-track" style="margin-top:5px"><div class="progress-fill progress-green" style="width:10%"></div></div>
+        </div>
+        <div style="text-align:right"><p style="font-size:11px;color:var(--text3)">Meta</p><p style="font-size:13px;font-weight:700;color:var(--green)">R$ 10.500</p></div>
+      </div>
+    </div>
+    <button onclick="go('s3')" class="btn btn-outline" style="margin-bottom:20px"><i class="ti ti-plus"></i> Adicionar novo sonho</button>
+  </div>
+  <nav class="bottom-nav">
+    <button class="nav-item" onclick="go('s5')"><i class="ti ti-home"></i><span>Início</span></button>
+    <button class="nav-item active" onclick="go('s9')"><i class="ti ti-dna-2"></i><span>DNA</span></button>
+    <button class="nav-item" onclick="go('s11')"><i class="ti ti-briefcase"></i><span>Oportunidades</span></button>
+    <button class="nav-item" onclick="go('s14')"><i class="ti ti-chart-bar"></i><span>Relatórios</span></button>
+    <button class="nav-item" onclick="go('s15')"><i class="ti ti-user"></i><span>Perfil</span></button>
+  </nav>
+</div>
+
+<!-- ══════════════════════════════════════════
+     S11 — OPORTUNIDADES  (ícone nav atualizado)
+══════════════════════════════════════════ -->
+<div class="screen" id="s11">
+  <div class="status-bar"><span>9:41</span><span><i class="ti ti-wifi"></i> <i class="ti ti-battery-2"></i></span></div>
+  <div style="padding:12px 20px 8px;flex-shrink:0">
+    <h2>Oportunidades</h2>
+    <p style="margin-top:2px">Selecionadas para o seu perfil</p>
+  </div>
+  <div class="content" style="padding:0 16px">
+    <div style="display:flex;gap:6px;margin-bottom:12px;overflow-x:auto;padding-bottom:4px">
+      <button style="background:var(--purple);color:#fff;border:none;border-radius:99px;padding:6px 14px;font-size:12px;cursor:pointer;font-family:inherit;font-weight:600;flex-shrink:0">Para você</button>
+      <button onclick="go('s12')" style="background:var(--surface);color:var(--text2);border:.5px solid var(--border);border-radius:99px;padding:6px 14px;font-size:12px;cursor:pointer;font-family:inherit;flex-shrink:0">Renda extra</button>
+      <button style="background:var(--surface);color:var(--text2);border:.5px solid var(--border);border-radius:99px;padding:6px 14px;font-size:12px;cursor:pointer;font-family:inherit;flex-shrink:0">Eventos</button>
+      <button style="background:var(--surface);color:var(--text2);border:.5px solid var(--border);border-radius:99px;padding:6px 14px;font-size:12px;cursor:pointer;font-family:inherit;flex-shrink:0">Seu sonho</button>
+    </div>
+    <div class="op-banner" style="background:var(--green-mid)">
+      <span class="badge" style="background:rgba(255,255,255,.2);color:#fff;margin-bottom:8px;display:inline-flex">Gratuito · Sábado</span>
+      <p style="font-size:15px;font-weight:700;color:#fff;margin-bottom:4px">Palestra: Como sair do aluguel e planejar sua casa própria</p>
+      <p style="font-size:12px;color:rgba(255,255,255,.7);margin-bottom:12px">Sáb, 24 mai · 14h · Presencial — Centro de SP</p>
+      <div style="display:flex;gap:8px">
+        <button style="flex:1;background:rgba(255,255,255,.15);color:#fff;border:none;border-radius:10px;padding:10px;font-size:13px;cursor:pointer;font-family:inherit;font-weight:600">Salvar</button>
+        <button style="flex:1;background:#fff;color:var(--green-mid);border:none;border-radius:10px;padding:10px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">Reservar vaga</button>
+      </div>
+    </div>
+    <div class="card" style="margin-bottom:8px;padding:14px">
+      <div style="display:flex;align-items:flex-start;gap:10px">
+        <div style="background:var(--amber-light);width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0"><i class="ti ti-car" style="font-size:20px;color:var(--amber-mid)"></i></div>
+        <div style="flex:1">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:4px">
+            <p style="font-size:13px;font-weight:600;color:var(--text)">Simulação de consórcio</p>
+            <span class="badge badge-amber">Seu sonho</span>
+          </div>
+          <p style="font-size:12px;line-height:1.4">Compare consórcio x financiamento para comprar seu carro.</p>
+          <button style="margin-top:8px;background:var(--amber-light);color:var(--amber-mid);border:none;border-radius:8px;padding:6px 12px;font-size:12px;cursor:pointer;font-family:inherit;font-weight:600">Ver simulação →</button>
+        </div>
+      </div>
+    </div>
+    <div class="card" style="margin-bottom:8px;padding:14px">
+      <div style="display:flex;align-items:flex-start;gap:10px">
+        <div style="background:var(--purple-light);width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0"><i class="ti ti-trending-down" style="font-size:20px;color:var(--purple)"></i></div>
+        <div style="flex:1">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:4px">
+            <p style="font-size:13px;font-weight:600;color:var(--text)">Desafio: Economize R$ 200</p>
+            <span class="badge badge-purple">7 dias</span>
+          </div>
+          <p style="font-size:12px;line-height:1.4">Corte um gasto e guarde a diferença esta semana.</p>
+          <button onclick="go('s12')" style="margin-top:8px;background:var(--purple-light);color:var(--purple-mid);border:none;border-radius:8px;padding:6px 12px;font-size:12px;cursor:pointer;font-family:inherit;font-weight:600">Aceitar desafio →</button>
+        </div>
+      </div>
+    </div>
+    <div style="height:14px"></div>
+  </div>
+  <nav class="bottom-nav">
+    <button class="nav-item" onclick="go('s5')"><i class="ti ti-home"></i><span>Início</span></button>
+    <button class="nav-item" onclick="go('s9')"><i class="ti ti-dna-2"></i><span>DNA</span></button>
+    <button class="nav-item active" onclick="go('s11')"><i class="ti ti-briefcase"></i><span>Oportunidades</span></button>
+    <button class="nav-item" onclick="go('s14')"><i class="ti ti-chart-bar"></i><span>Relatórios</span></button>
+    <button class="nav-item" onclick="go('s15')"><i class="ti ti-user"></i><span>Perfil</span></button>
+  </nav>
+</div>
+
+<!-- ══════════════════════════════════════════
+     S12 — RENDA EXTRA  (nav atualizado)
+══════════════════════════════════════════ -->
+<div class="screen" id="s12">
+  <div class="status-bar"><span>9:41</span><span><i class="ti ti-wifi"></i> <i class="ti ti-battery-2"></i></span></div>
+  <div style="padding:12px 20px 8px;flex-shrink:0;display:flex;align-items:center;gap:12px">
+    <button onclick="go('s11')" style="background:none;border:none;cursor:pointer;padding:0;color:var(--text2)"><i class="ti ti-arrow-left" style="font-size:20px"></i></button>
+    <div><h2>Renda extra</h2><p>Oportunidades para seu perfil</p></div>
+  </div>
+  <div class="content" style="padding:0 16px">
+    <div style="background:var(--green-mid);border-radius:16px;padding:16px;margin-bottom:10px">
+      <p style="font-size:12px;color:rgba(255,255,255,.7);margin-bottom:4px">Seu potencial estimado</p>
+      <p style="font-size:28px;font-weight:700;color:#fff">+ R$ 800 – 1.500</p>
+      <p style="font-size:12px;color:rgba(255,255,255,.7)">por mês com suas habilidades cadastradas</p>
+    </div>
+    <p style="font-size:13px;font-weight:600;margin-bottom:8px">Suas habilidades</p>
+    <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px">
+      <span class="badge badge-green"><i class="ti ti-tools-kitchen-2" style="font-size:10px"></i> Cozinha</span>
+      <span class="badge badge-green"><i class="ti ti-car" style="font-size:10px"></i> Motorista</span>
+      <span class="badge badge-purple">+ Adicionar</span>
+    </div>
+    <p style="font-size:13px;font-weight:600;margin-bottom:8px">Vagas disponíveis esta semana</p>
+    <div class="card" style="margin-bottom:8px;padding:14px">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+        <div style="background:var(--amber-light);width:38px;height:38px;border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0"><i class="ti ti-tools-kitchen-2" style="font-size:18px;color:var(--amber-mid)"></i></div>
+        <div><p style="font-size:13px;font-weight:600;color:var(--text)">Auxiliar de cozinha</p><p style="font-size:11px">Evento corporativo · Sábado · 6h</p></div>
+        <div style="margin-left:auto;text-align:right"><p style="font-size:15px;font-weight:700;color:var(--green)">R$ 180</p><p style="font-size:10px;color:var(--text3)">diária</p></div>
+      </div>
+      <button style="width:100%;background:var(--green-light);color:var(--green-mid);border:none;border-radius:10px;padding:9px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit">Tenho interesse</button>
+    </div>
+    <div class="card" style="margin-bottom:8px;padding:14px">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+        <div style="background:var(--green-light);width:38px;height:38px;border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0"><i class="ti ti-car" style="font-size:18px;color:var(--green)"></i></div>
+        <div><p style="font-size:13px;font-weight:600;color:var(--text)">Motorista para evento</p><p style="font-size:11px">Domingo · 4h · Centro</p></div>
+        <div style="margin-left:auto;text-align:right"><p style="font-size:15px;font-weight:700;color:var(--green)">R$ 120</p><p style="font-size:10px;color:var(--text3)">diária</p></div>
+      </div>
+      <button style="width:100%;background:var(--green-light);color:var(--green-mid);border:none;border-radius:10px;padding:9px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit">Tenho interesse</button>
+    </div>
+    <div style="background:var(--purple-light);border-radius:14px;padding:14px;margin-bottom:16px">
+      <p style="font-size:12px;font-weight:600;color:var(--purple-mid);margin-bottom:4px"><i class="ti ti-sparkles" style="font-size:13px"></i> Sabia que...</p>
+      <p style="font-size:12px;color:var(--purple-dark);line-height:1.5">Fazendo 2 diárias por mês você antecipa seu carro em <strong>1 ano e 8 meses</strong>.</p>
+    </div>
+  </div>
+  <nav class="bottom-nav">
+    <button class="nav-item" onclick="go('s5')"><i class="ti ti-home"></i><span>Início</span></button>
+    <button class="nav-item" onclick="go('s9')"><i class="ti ti-dna-2"></i><span>DNA</span></button>
+    <button class="nav-item active" onclick="go('s11')"><i class="ti ti-briefcase"></i><span>Oportunidades</span></button>
+    <button class="nav-item" onclick="go('s14')"><i class="ti ti-chart-bar"></i><span>Relatórios</span></button>
+    <button class="nav-item" onclick="go('s15')"><i class="ti ti-user"></i><span>Perfil</span></button>
+  </nav>
+</div>
+
+<!-- ══════════════════════════════════════════
+     S13 — RECOMPENSAS  (acesso via dashboard strip)
+══════════════════════════════════════════ -->
+<div class="screen" id="s13">
+  <div class="status-bar"><span>9:41</span><span><i class="ti ti-wifi"></i> <i class="ti ti-battery-2"></i></span></div>
+  <div style="padding:12px 20px 8px;flex-shrink:0;display:flex;align-items:center;gap:12px">
+    <button onclick="go('s15')" style="background:none;border:none;cursor:pointer;padding:0;color:var(--text2)"><i class="ti ti-arrow-left" style="font-size:20px"></i></button>
+    <h2>Minhas conquistas</h2>
+  </div>
+  <div class="content" style="padding:0 16px">
+    <div style="background:var(--purple);border-radius:16px;padding:16px;margin-bottom:12px;display:flex;align-items:center;gap:14px">
+      <div style="background:rgba(255,255,255,.2);width:50px;height:50px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+        <i class="ti ti-star" style="font-size:26px;color:#fff"></i>
+      </div>
+      <div>
+        <p style="font-size:15px;font-weight:700;color:#fff">3 conquistas desbloqueadas</p>
+        <p style="font-size:12px;color:rgba(255,255,255,.7)">225 pontos acumulados · Nível 1</p>
+      </div>
+    </div>
+    <p style="font-size:12px;font-weight:600;margin-bottom:8px;color:var(--text2)">Desbloqueadas</p>
+    <div class="reward-card">
+      <div class="reward-icon" style="background:var(--amber-light)"><i class="ti ti-footprint" style="color:var(--amber-mid)"></i></div>
+      <div><p style="font-size:13px;font-weight:600;color:var(--text)">Primeiro passo</p><p style="font-size:11px">Completou o cadastro inicial</p></div>
+      <span class="badge badge-amber" style="margin-left:auto">+50 pts</span>
+    </div>
+    <div class="reward-card">
+      <div class="reward-icon" style="background:var(--purple-light)"><i class="ti ti-star" style="color:var(--purple-mid)"></i></div>
+      <div><p style="font-size:13px;font-weight:600;color:var(--text)">Sonho definido</p><p style="font-size:11px">Cadastrou seu primeiro objetivo</p></div>
+      <span class="badge badge-purple" style="margin-left:auto">+75 pts</span>
+    </div>
+    <div class="reward-card">
+      <div class="reward-icon" style="background:var(--green-light)"><i class="ti ti-check" style="color:var(--green)"></i></div>
+      <div><p style="font-size:13px;font-weight:600;color:var(--text)">Controle ativado</p><p style="font-size:11px">Lançou a primeira despesa</p></div>
+      <span class="badge badge-green" style="margin-left:auto">+100 pts</span>
+    </div>
+    <p style="font-size:12px;font-weight:600;margin:12px 0 8px;color:var(--text2)">Próximas conquistas</p>
+    <div class="reward-card reward-locked">
+      <div class="reward-icon" style="background:var(--surface)"><i class="ti ti-calendar-event" style="color:var(--text3)"></i></div>
+      <div><p style="font-size:13px;font-weight:600;color:var(--text)">7 dias de consciência</p><p style="font-size:11px">Registre gastos por 7 dias seguidos</p></div>
+      <span class="badge badge-gray" style="margin-left:auto">Em breve</span>
+    </div>
+    <div class="reward-card reward-locked">
+      <div class="reward-icon" style="background:var(--surface)"><i class="ti ti-scissors" style="color:var(--text3)"></i></div>
+      <div><p style="font-size:13px;font-weight:600;color:var(--text)">Caçador de economia</p><p style="font-size:11px">Identifique um gasto para reduzir</p></div>
+      <span class="badge badge-gray" style="margin-left:auto">Em breve</span>
+    </div>
+    <div class="reward-card reward-locked">
+      <div class="reward-icon" style="background:var(--surface)"><i class="ti ti-briefcase" style="color:var(--text3)"></i></div>
+      <div><p style="font-size:13px;font-weight:600;color:var(--text)">Renda extra no radar</p><p style="font-size:11px">Cadastre uma habilidade profissional</p></div>
+      <span class="badge badge-gray" style="margin-left:auto">Em breve</span>
+    </div>
+    <div class="reward-card reward-locked">
+      <div class="reward-icon" style="background:var(--surface)"><i class="ti ti-crown" style="color:var(--text3)"></i></div>
+      <div><p style="font-size:13px;font-weight:600;color:var(--text)">Perfil completo</p><p style="font-size:11px">Complete 100% do DNA Financeiro</p></div>
+      <span class="badge badge-gray" style="margin-left:auto">Em breve</span>
+    </div>
+    <div style="height:20px"></div>
+  </div>
+  <nav class="bottom-nav">
+    <button class="nav-item" onclick="go('s5')"><i class="ti ti-home"></i><span>Início</span></button>
+    <button class="nav-item" onclick="go('s9')"><i class="ti ti-dna-2"></i><span>DNA</span></button>
+    <button class="nav-item" onclick="go('s11')"><i class="ti ti-briefcase"></i><span>Oportunidades</span></button>
+    <button class="nav-item" onclick="go('s14')"><i class="ti ti-chart-bar"></i><span>Relatórios</span></button>
+    <button class="nav-item active" onclick="go('s15')"><i class="ti ti-user"></i><span>Perfil</span></button>
+  </nav>
+</div>
+
+<!-- ══════════════════════════════════════════
+     S14 — RELATÓRIOS  (mês unificado)
+══════════════════════════════════════════ -->
+<div class="screen" id="s14">
+  <div class="status-bar"><span>9:41</span><span><i class="ti ti-wifi"></i> <i class="ti ti-battery-2"></i></span></div>
+  <div style="padding:12px 20px 8px;flex-shrink:0">
+    <h2>Relatórios</h2>
+    <div style="display:flex;gap:6px;margin-top:10px">
+      <button style="background:var(--purple);color:#fff;border:none;border-radius:99px;padding:5px 14px;font-size:12px;cursor:pointer;font-family:inherit;font-weight:600">Maio 2026</button>
+      <button style="background:var(--surface);color:var(--text2);border:.5px solid var(--border);border-radius:99px;padding:5px 12px;font-size:12px;cursor:pointer;font-family:inherit">Abr</button>
+      <button style="background:var(--surface);color:var(--text2);border:.5px solid var(--border);border-radius:99px;padding:5px 12px;font-size:12px;cursor:pointer;font-family:inherit">Mar</button>
+    </div>
+  </div>
+  <div class="content" style="padding:8px 16px">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
+      <div style="background:var(--green-light);border-radius:14px;padding:14px">
+        <p style="font-size:11px;color:var(--green-mid);margin-bottom:4px;font-weight:600">Receitas · Maio</p>
+        <p style="font-size:20px;font-weight:700;color:var(--green)">R$ 3.500</p>
+        <p style="font-size:10px;color:var(--green-mid);margin-top:2px">= mesmo que abril</p>
+      </div>
+      <div style="background:var(--coral-light);border-radius:14px;padding:14px">
+        <p style="font-size:11px;color:var(--coral-mid);margin-bottom:4px;font-weight:600">Despesas · Maio</p>
+        <p style="font-size:20px;font-weight:700;color:var(--coral)">R$ 2.455</p>
+        <p style="font-size:10px;color:var(--coral-mid);margin-top:2px">↓ R$ 345 vs março</p>
+      </div>
+    </div>
+    <div style="background:var(--purple-light);border-radius:14px;padding:14px;margin-bottom:10px;display:flex;align-items:center;gap:10px">
+      <i class="ti ti-trending-up" style="font-size:26px;color:var(--purple)"></i>
+      <div>
+        <p style="font-size:12px;color:var(--purple-mid);font-weight:600">Você economizou em maio</p>
+        <p style="font-size:22px;font-weight:700;color:var(--purple)">R$ 1.045</p>
+      </div>
+    </div>
+    <p style="font-size:13px;font-weight:600;margin-bottom:8px">Por categoria — Maio</p>
+    <div class="card" style="margin-bottom:8px;padding:12px 14px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:5px">
+        <div style="display:flex;align-items:center;gap:8px"><i class="ti ti-tools-kitchen-2" style="font-size:15px;color:var(--amber-mid)"></i><span style="font-size:13px;color:var(--text)">Alimentação</span></div>
+        <span style="font-size:13px;font-weight:700;color:var(--text)">R$ 820</span>
+      </div>
+      <div class="progress-track"><div class="progress-fill progress-amber" style="width:33%"></div></div>
+    </div>
+    <div class="card" style="margin-bottom:8px;padding:12px 14px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:5px">
+        <div style="display:flex;align-items:center;gap:8px"><i class="ti ti-home" style="font-size:15px;color:var(--purple)"></i><span style="font-size:13px;color:var(--text)">Moradia</span></div>
+        <span style="font-size:13px;font-weight:700;color:var(--text)">R$ 900</span>
+      </div>
+      <div class="progress-track"><div class="progress-fill progress-purple" style="width:37%"></div></div>
+    </div>
+    <div class="card" style="margin-bottom:8px;padding:12px 14px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:5px">
+        <div style="display:flex;align-items:center;gap:8px"><i class="ti ti-car" style="font-size:15px;color:var(--green)"></i><span style="font-size:13px;color:var(--text)">Transporte</span></div>
+        <span style="font-size:13px;font-weight:700;color:var(--text)">R$ 450</span>
+      </div>
+      <div class="progress-track"><div class="progress-fill progress-green" style="width:18%"></div></div>
+    </div>
+    <div style="background:var(--green-light);border-radius:14px;padding:12px 14px;margin-bottom:16px">
+      <p style="font-size:12px;color:var(--green-mid);line-height:1.5"><i class="ti ti-sparkles" style="font-size:13px"></i> Em maio você gastou <strong>R$ 345 a menos</strong> do que em março. Mantendo esse ritmo, você chega ao carro em <strong>3 anos e 5 meses</strong>.</p>
+    </div>
+  </div>
+  <nav class="bottom-nav">
+    <button class="nav-item" onclick="go('s5')"><i class="ti ti-home"></i><span>Início</span></button>
+    <button class="nav-item" onclick="go('s9')"><i class="ti ti-dna-2"></i><span>DNA</span></button>
+    <button class="nav-item" onclick="go('s11')"><i class="ti ti-briefcase"></i><span>Oportunidades</span></button>
+    <button class="nav-item active" onclick="go('s14')"><i class="ti ti-chart-bar"></i><span>Relatórios</span></button>
+    <button class="nav-item" onclick="go('s15')"><i class="ti ti-user"></i><span>Perfil</span></button>
+  </nav>
+</div>
+
+<!-- ══════════════════════════════════════════
+     S15 — PERFIL  (link para recompensas)
+══════════════════════════════════════════ -->
+<div class="screen" id="s15">
+  <div class="status-bar"><span>9:41</span><span><i class="ti ti-wifi"></i> <i class="ti ti-battery-2"></i></span></div>
+  <div style="padding:12px 20px 8px;flex-shrink:0"><h2>Perfil</h2></div>
+  <div class="content" style="padding:0 16px">
+    <div style="display:flex;align-items:center;gap:14px;padding:8px 0 14px">
+      <div style="width:62px;height:62px;border-radius:50%;background:var(--purple);display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:700;color:#fff;flex-shrink:0">FS</div>
+      <div>
+        <p style="font-size:16px;font-weight:700;color:var(--text)">Fernando Silva</p>
+        <p style="font-size:12px">São Paulo – SP</p>
+        <div style="display:flex;align-items:center;gap:6px;margin-top:4px">
+          <span class="badge badge-purple"><i class="ti ti-star" style="font-size:10px"></i> Nível 1</span>
+          <span class="badge badge-amber"><i class="ti ti-trophy" style="font-size:10px"></i> 225 pts</span>
+        </div>
+      </div>
+    </div>
+    <div class="divider"></div>
+    <div class="card" style="margin:8px 0 10px;padding:14px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+        <span style="font-size:13px;font-weight:600;color:var(--text)"><i class="ti ti-dna-2" style="color:var(--purple)"></i> DNA Financeiro</span>
+        <span style="font-size:13px;font-weight:700;color:var(--purple)">42%</span>
+      </div>
+      <div class="progress-track"><div class="progress-fill progress-purple" style="width:42%"></div></div>
+      <button onclick="go('s9')" style="margin-top:10px;width:100%;background:var(--purple-light);color:var(--purple-mid);border:none;border-radius:10px;padding:10px;font-size:13px;cursor:pointer;font-family:inherit;font-weight:600">Completar perfil</button>
+    </div>
+    <div class="card" style="margin:0 0 8px;padding:0">
+      <button onclick="go('s10')" style="width:100%;background:none;border:none;border-bottom:.5px solid var(--border);padding:14px;display:flex;align-items:center;gap:12px;cursor:pointer;font-family:inherit;text-align:left">
+        <i class="ti ti-target" style="font-size:18px;color:var(--purple)"></i>
+        <span style="flex:1;font-size:13px;color:var(--text);font-weight:500">Meus sonhos e metas</span>
+        <i class="ti ti-chevron-right" style="font-size:16px;color:var(--text3)"></i>
+      </button>
+      <!-- MELHORIA 11: conquistas acessíveis pelo perfil com badge de destaque -->
+      <button onclick="go('s13')" style="width:100%;background:none;border:none;border-bottom:.5px solid var(--border);padding:14px;display:flex;align-items:center;gap:12px;cursor:pointer;font-family:inherit;text-align:left">
+        <i class="ti ti-trophy" style="font-size:18px;color:var(--amber-mid)"></i>
+        <span style="flex:1;font-size:13px;color:var(--text);font-weight:500">Minhas conquistas</span>
+        <span class="badge badge-amber">3 desbloqueadas</span>
+        <i class="ti ti-chevron-right" style="font-size:16px;color:var(--text3)"></i>
+      </button>
+      <button onclick="go('s12')" style="width:100%;background:none;border:none;border-bottom:.5px solid var(--border);padding:14px;display:flex;align-items:center;gap:12px;cursor:pointer;font-family:inherit;text-align:left">
+        <i class="ti ti-currency-dollar" style="font-size:18px;color:var(--green)"></i>
+        <span style="flex:1;font-size:13px;color:var(--text);font-weight:500">Renda extra — meu cadastro</span>
+        <i class="ti ti-chevron-right" style="font-size:16px;color:var(--text3)"></i>
+      </button>
+      <button style="width:100%;background:none;border:none;padding:14px;display:flex;align-items:center;gap:12px;cursor:pointer;font-family:inherit;text-align:left">
+        <i class="ti ti-bell" style="font-size:18px;color:var(--text2)"></i>
+        <span style="flex:1;font-size:13px;color:var(--text);font-weight:500">Notificações</span>
+        <i class="ti ti-chevron-right" style="font-size:16px;color:var(--text3)"></i>
+      </button>
+    </div>
+    <div class="card" style="margin:0 0 16px;padding:0">
+      <button style="width:100%;background:none;border:none;border-bottom:.5px solid var(--border);padding:14px;display:flex;align-items:center;gap:12px;cursor:pointer;font-family:inherit;text-align:left">
+        <i class="ti ti-shield" style="font-size:18px;color:var(--text2)"></i>
+        <span style="flex:1;font-size:13px;color:var(--text);font-weight:500">Privacidade e segurança</span>
+        <i class="ti ti-chevron-right" style="font-size:16px;color:var(--text3)"></i>
+      </button>
+      <button onclick="go('s1')" style="width:100%;background:none;border:none;padding:14px;display:flex;align-items:center;gap:12px;cursor:pointer;font-family:inherit;text-align:left">
+        <i class="ti ti-logout" style="font-size:18px;color:var(--coral)"></i>
+        <span style="flex:1;font-size:13px;color:var(--coral);font-weight:500">Sair da conta</span>
+      </button>
+    </div>
+  </div>
+  <nav class="bottom-nav">
+    <button class="nav-item" onclick="go('s5')"><i class="ti ti-home"></i><span>Início</span></button>
+    <button class="nav-item" onclick="go('s9')"><i class="ti ti-dna-2"></i><span>DNA</span></button>
+    <button class="nav-item" onclick="go('s11')"><i class="ti ti-briefcase"></i><span>Oportunidades</span></button>
+    <button class="nav-item" onclick="go('s14')"><i class="ti ti-chart-bar"></i><span>Relatórios</span></button>
+    <button class="nav-item active" onclick="go('s15')"><i class="ti ti-user"></i><span>Perfil</span></button>
+  </nav>
+</div>
+
+</div><!-- end .phone -->
+</div><!-- end .phone-wrap -->
+
+<!-- Screen label -->
+<span id="screen-label">Tela 1 — Boas-vindas</span>
+
+<!-- Minimap navigation -->
+<div class="minimap">
+  <button class="mm-btn" onclick="go('s1')">1. Boas-vindas</button>
+  <button class="mm-btn" onclick="go('s2')">2. Cadastro</button>
+  <button class="mm-btn" onclick="go('s3')">3. Sonhos</button>
+  <button class="mm-btn" onclick="go('s4')">4. Diagnóstico</button>
+  <button class="mm-btn" onclick="go('s4b')" style="background:#fff3cd;border-color:#ffc107;color:#856404">4b. Notificações ★</button>
+  <button class="mm-btn" onclick="go('s5')">5. Dashboard</button>
+  <button class="mm-btn" onclick="go('s6')" style="background:#f0eeff;border-color:#7F77DD;color:#534AB7;font-weight:700">6. Lançar despesa</button>
+  <button class="mm-btn" onclick="go('s6m')" style="background:#f0eeff;border-color:#7F77DD;color:#534AB7">6m. Digitar</button>
+  <button class="mm-btn" onclick="go('s6v')" style="background:#e1f5ee;border-color:#1D9E75;color:#0F6E56">6v. Falar ★</button>
+  <button class="mm-btn" onclick="go('s6p')" style="background:#f0eeff;border-color:#7F77DD;color:#534AB7">6p. Câmera ★</button>
+  <button class="mm-btn" onclick="go('s6pa')" style="background:#f0eeff;border-color:#7F77DD;color:#534AB7">6pa. Analisando IA ★</button>
+  <button class="mm-btn" onclick="go('s6pc')" style="background:#f0eeff;border-color:#7F77DD;color:#534AB7">6pc. Confirmação ★</button>
+  <button class="mm-btn" onclick="go('s7')">7. IA pós-despesa</button>
+  <button class="mm-btn" onclick="go('s8')">8. Meu dia</button>
+  <button class="mm-btn" onclick="go('s9')">9. DNA</button>
+  <button class="mm-btn" onclick="go('s10')">10. Metas</button>
+  <button class="mm-btn" onclick="go('s11')">11. Oportunidades</button>
+  <button class="mm-btn" onclick="go('s12')">12. Renda extra</button>
+  <button class="mm-btn" onclick="go('s13')">13. Recompensas</button>
+  <button class="mm-btn" onclick="go('s14')">14. Relatórios</button>
+  <button class="mm-btn" onclick="go('s15')">15. Perfil</button>
+</div>
+
+<script>
+const labels = {
+  s1:'Tela 1 — Boas-vindas (melhorada)',
+  s2:'Tela 2 — Cadastro simplificado (4 campos)',
+  s3:'Tela 3 — Sonhos (grid 2 colunas)',
+  s4:'Tela 4 — Diagnóstico (badge positivo)',
+  s4b:'Tela 4b — Notificações (NOVA)',
+  s5:'Tela 5 — Dashboard (despesa em destaque)',
+  s6:'Tela 6 — Lançar despesa — escolha de modo',
+  s6m:'Tela 6m — Digitar manualmente',
+  s6v:'Tela 6v — Falar despesa (voz IA)',
+  s6p:'Tela 6p — Câmera — fotografar comprovante',
+  s6pa:'Tela 6pa — Analisando com IA...',
+  s6pc:'Tela 6pc — Confirmação do resultado da IA',
+  s7:'Tela 7 — IA pós-despesa (texto curto)',
+  s8:'Tela 8 — Meu dia (gráfico com valores)',
+  s9:'Tela 9 — DNA (textos positivos)',
+  s10:'Tela 10 — Metas',
+  s11:'Tela 11 — Oportunidades (ícone atualizado)',
+  s12:'Tela 12 — Renda extra',
+  s13:'Tela 13 — Recompensas',
+  s14:'Tela 14 — Relatórios (mês unificado)',
+  s15:'Tela 15 — Perfil (conquistas em destaque)'
+};
+
+function go(id){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  const t=document.getElementById(id);
+  if(t){
+    t.classList.add('active');
+    const c=t.querySelector('.content');
+    if(c) c.scrollTop=0;
+  }
+  document.getElementById('screen-label').textContent=labels[id]||id;
+}
+
+function selSonho(el){
+  document.querySelectorAll('.sonho-chip').forEach(c=>c.classList.remove('sel'));
+  el.classList.add('sel');
+}
+
+function selCat(el){
+  document.querySelectorAll('.cat-item').forEach(c=>c.classList.remove('sel'));
+  el.classList.add('sel');
+}
+
+let kpVal='45';
+function kpPress(k){
+  if(k==='⌫'){kpVal=kpVal.length>1?kpVal.slice(0,-1):'0';}
+  else if(k===','){if(!kpVal.includes(','))kpVal+=',';}
+  else{if(kpVal==='0')kpVal=k;else kpVal+=k;}
+  const el=document.getElementById('kp-display');
+  if(el) el.textContent=kpVal.replace(',','');
+}
+
+/* Voice flow simulation */
+let voiceTimer=null;
+function startVoice(){
+  document.getElementById('voice-idle').style.display='none';
+  document.getElementById('voice-listening').style.display='flex';
+  document.getElementById('voice-result').style.display='none';
+  voiceTimer=setTimeout(()=>stopVoice(),2800);
+}
+function stopVoice(){
+  clearTimeout(voiceTimer);
+  document.getElementById('voice-idle').style.display='none';
+  document.getElementById('voice-listening').style.display='none';
+  document.getElementById('voice-result').style.display='flex';
+}
+function resetVoice(){
+  clearTimeout(voiceTimer);
+  document.getElementById('voice-idle').style.display='flex';
+  document.getElementById('voice-listening').style.display='none';
+  document.getElementById('voice-result').style.display='none';
+}
+/* Reset voice state when entering the voice screen */
+const _origGo=go;
+function go(id){
+  if(id==='s6v') resetVoice();
+  _origGo(id);
+}
+</script>
+</body>
+</html>
