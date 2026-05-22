@@ -1,7 +1,8 @@
+import type { CSSProperties } from 'react'
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
-import type { CSSProperties } from 'react'
+import { C } from '@/app/components/ui'
 
 // ── Dados dos sonhos ──────────────────────────────────────────────────────────
 
@@ -42,6 +43,8 @@ interface PerfilInfo {
   descricao: string
   color: string
   bg: string
+  badgeBg: string
+  badgeColor: string
 }
 
 function calcPerfil(sobra: number, income: number): PerfilInfo {
@@ -50,29 +53,29 @@ function calcPerfil(sobra: number, income: number): PerfilInfo {
   if (sobra < 0) return {
     label: 'Atenção financeira',
     descricao: 'Suas despesas estão acima da sua renda. O foco agora é identificar cortes para recuperar o equilíbrio.',
-    color: '#C0392B', bg: '#FDECEA',
+    color: C.coralDark, bg: C.coralBg, badgeBg: C.coral, badgeColor: '#fff',
   }
   if (taxa < 10) return {
     label: 'Em reorganização',
     descricao: 'Você tem uma sobra pequena. Com pequenos ajustes, é possível ampliar sua capacidade de poupança.',
-    color: '#B7770D', bg: '#FEF9E7',
+    color: C.amberDark, bg: C.amberBg, badgeBg: C.amberBg, badgeColor: C.amberDark,
   }
   if (taxa <= 20) return {
     label: 'Em evolução',
     descricao: 'Você está no caminho certo. Sua taxa de poupança é saudável e pode crescer ainda mais.',
-    color: '#1A6EA8', bg: '#EBF5FB',
+    color: C.purpleDeep, bg: C.purpleBg, badgeBg: C.purpleBg, badgeColor: C.purpleDeep,
   }
   return {
     label: 'Bom potencial',
     descricao: 'Excelente! Você tem uma sobra expressiva. O próximo passo é direcionar esse valor com inteligência.',
-    color: '#1E8449', bg: '#EAFAF1',
+    color: C.greenDark, bg: C.greenBg, badgeBg: C.greenBg, badgeColor: C.greenDark,
   }
 }
 
 // ── Formatadores ───────────────────────────────────────────────────────────────
 
 function fmtBRL(value: number): string {
-  return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 2 })
+  return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 })
 }
 
 function fmtPct(value: number): string {
@@ -103,8 +106,7 @@ export default async function DiagnosticoPage({ params }: Props) {
     redirect(`/${unitSlug}`)
   }
 
-  // 3. Buscar dados do lead — só os campos que exibimos
-  //    Valida unit_slug para impedir que lead de outra unidade acesse este diagnóstico
+  // 3. Buscar dados do lead — valida unit_slug para impedir acesso cross-unit
   let lead: {
     name: string
     main_dream: string | null
@@ -135,6 +137,7 @@ export default async function DiagnosticoPage({ params }: Props) {
   const sobra        = income - expenses
   const taxa         = income > 0 ? (sobra / income) * 100 : 0
   const limiteDiario = sobra > 0 ? sobra / 30 : 0
+  const expensesPct  = income > 0 ? (expenses / income) * 100 : 0
 
   // 5. Perfil e recomendação
   const perfil       = calcPerfil(sobra, income)
@@ -145,142 +148,159 @@ export default async function DiagnosticoPage({ params }: Props) {
     : (RECOMENDACOES[dream] ?? RECOMENDACOES.outro)
 
   const firstName = lead.name.split(' ')[0]
-  const primary   = '#7F77DD'
 
   return (
-    <div style={{ fontFamily: "'DM Sans', system-ui, sans-serif", background: '#F5F4FB', minHeight: '100dvh' }}>
+    <div style={{ fontFamily: "'DM Sans', system-ui, sans-serif", background: C.bgApp, minHeight: '100dvh' }}>
 
       {/* ── Header ── */}
       <header style={{
-        background: '#fff', borderBottom: '1px solid #EEEDFE',
-        padding: '14px 20px', display: 'flex', alignItems: 'center',
-        gap: 10, position: 'sticky', top: 0, zIndex: 10,
+        background: '#fff', borderBottom: `0.5px solid ${C.purpleBg}`,
+        padding: '12px 20px', display: 'flex', alignItems: 'center', gap: 10,
+        position: 'sticky', top: 0, zIndex: 10,
       }}>
         <div style={{
-          width: 36, height: 36, borderRadius: 10, background: '#EEEDFE',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18,
+          width: 34, height: 34, borderRadius: 10, background: C.purpleBg,
+          display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 17,
         }}>🧬</div>
         <div>
-          <div style={{ fontWeight: 700, fontSize: 14, color: primary }}>DNA Financeiro</div>
-          <div style={{ fontSize: 11, color: '#999' }}>{lead.city ?? unitSlug}</div>
+          <div style={{ fontWeight: 600, fontSize: 14, color: C.purple }}>DNA Financeiro</div>
+          <div style={{ fontSize: 11, color: C.textSec }}>{lead.city ?? unitSlug}</div>
         </div>
-        <div style={{ marginLeft: 'auto' }}>
-          <span style={{
-            background: perfil.bg, color: perfil.color,
-            fontSize: 11, fontWeight: 600, padding: '3px 10px', borderRadius: 99,
-          }}>{perfil.label}</span>
-        </div>
+        <span style={{
+          marginLeft: 'auto', background: perfil.badgeBg, color: perfil.badgeColor,
+          fontSize: 11, fontWeight: 500, padding: '3px 10px', borderRadius: 99,
+        }}>{perfil.label}</span>
       </header>
 
-      <main style={{ maxWidth: 480, margin: '0 auto', padding: '24px 20px 48px' }}>
+      <main style={{ maxWidth: 480, margin: '0 auto', padding: '20px 16px 48px' }}>
 
         {/* ── Hero ── */}
-        <div style={{ marginBottom: 24 }}>
-          <p style={{ fontSize: 13, color: primary, fontWeight: 600, margin: '0 0 4px' }}>
+        <div style={{ marginBottom: 16 }}>
+          <p style={{ fontSize: 13, color: C.purple, fontWeight: 600, margin: '0 0 2px' }}>
             Olá, {firstName}! 👋
           </p>
-          <h1 style={{ fontSize: 22, fontWeight: 800, color: '#1A1A2E', lineHeight: 1.25, margin: '0 0 8px' }}>
-            Seu diagnóstico inicial está pronto
+          <h1 style={{ fontSize: 20, fontWeight: 500, color: C.text, lineHeight: 1.3, margin: '0 0 4px' }}>
+            Seu diagnóstico inicial
           </h1>
-          <p style={{ color: '#999', fontSize: 13, lineHeight: 1.6, margin: 0 }}>
-            Conforme você usar o app, seu diagnóstico ficará cada vez mais preciso e personalizado.
+          <p style={{ color: C.textSec, fontSize: 13, lineHeight: 1.5, margin: 0 }}>
+            Com base no que você informou, nossa IA calculou:
           </p>
         </div>
 
-        {/* ── Sonho ── */}
+        {/* ── Perfil financeiro + mini-stats ── */}
         <div style={{
-          background: '#EEEDFE', borderRadius: 16,
-          padding: '16px', marginBottom: 12,
-          display: 'flex', alignItems: 'center', gap: 14,
+          background: C.purpleBg, borderRadius: 16,
+          padding: 16, marginBottom: 10,
         }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+            <span style={{ fontSize: 13, fontWeight: 500, color: C.purpleDark }}>Perfil financeiro</span>
+            <span style={{
+              background: perfil.badgeBg, color: perfil.badgeColor,
+              fontSize: 11, fontWeight: 500, padding: '2px 8px', borderRadius: 99,
+              border: `1px solid ${perfil.color}33`,
+            }}>{perfil.label}</span>
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <MiniStat
+              label="Sobra mensal"
+              value={fmtBRL(sobra)}
+              valueColor={sobra >= 0 ? C.green : C.coral}
+            />
+            <MiniStat
+              label="Taxa de poupança"
+              value={sobra >= 0 ? fmtPct(taxa) : '—'}
+              valueColor={sobra >= 0 ? C.green : C.textSec}
+            />
+          </div>
+          {limiteDiario > 0 && (
+            <div style={{ marginTop: 8, textAlign: 'center' }}>
+              <span style={{ fontSize: 11, color: C.purpleDeep }}>
+                Limite saudável por dia: <strong>{fmtBRL(limiteDiario)}</strong>
+              </span>
+            </div>
+          )}
+        </div>
+
+        {/* ── Card do sonho ── */}
+        <div style={{
+          background: '#fff', borderRadius: 16,
+          padding: '14px 16px', marginBottom: 10,
+          border: `0.5px solid ${C.border}`,
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+            <div style={{
+              background: C.amberBg, borderRadius: 10,
+              width: 36, height: 36, flexShrink: 0,
+              display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18,
+            }}>{dreamInfo.emoji}</div>
+            <div>
+              <p style={{ fontSize: 13, fontWeight: 500, margin: 0, color: C.text }}>
+                Seu sonho: {dreamInfo.label}
+              </p>
+              <p style={{ fontSize: 11, color: C.textSec, margin: '2px 0 0' }}>
+                Continue para definir sua meta de valor
+              </p>
+            </div>
+          </div>
+          {/* barra de progresso indicativa */}
           <div style={{
-            width: 48, height: 48, borderRadius: 14, background: '#fff', flexShrink: 0,
-            display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24,
-          }}>{dreamInfo.emoji}</div>
-          <div>
-            <p style={{ fontSize: 11, color: '#7F77DD', fontWeight: 600, margin: '0 0 2px' }}>Seu sonho principal</p>
-            <p style={{ fontSize: 16, fontWeight: 700, color: '#3C3489', margin: 0 }}>{dreamInfo.label}</p>
+            background: 'rgba(0,0,0,0.06)', borderRadius: 99, height: 6, overflow: 'hidden', marginBottom: 6,
+          }}>
+            <div style={{
+              background: C.amber, height: '100%', borderRadius: 99, width: '8%', transition: 'width 0.3s',
+            }} />
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+            <span style={{ fontSize: 11, color: C.textSec }}>Diagnóstico inicial completo</span>
+            <span style={{ fontSize: 11, color: C.amberDark, fontWeight: 500 }}>Próximo: definir meta</span>
           </div>
         </div>
 
         {/* ── Renda e Despesas ── */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 10 }}>
           <InfoCard label="Renda mensal" value={fmtBRL(income)} />
-          <InfoCard label="Despesas mensais" value={fmtBRL(expenses)} />
+          <InfoCard label="Despesas mensais" value={fmtBRL(expenses)} valueColor={C.coral} />
         </div>
 
-        {/* ── Sobra + Taxa ── */}
+        {/* ── Recomendação da IA ── */}
         <div style={{
-          background: sobra >= 0 ? '#EAFAF1' : '#FDECEA',
-          borderRadius: 16, padding: '16px 18px', marginBottom: 10,
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          background: C.greenBg, borderRadius: 14,
+          padding: 14, marginBottom: 10,
         }}>
-          <div>
-            <p style={{ fontSize: 11, color: '#888', fontWeight: 600, margin: '0 0 2px' }}>Sobra mensal</p>
-            <p style={{ fontSize: 22, fontWeight: 800, color: sobra >= 0 ? '#1E8449' : '#C0392B', margin: 0 }}>
-              {fmtBRL(sobra)}
-            </p>
-          </div>
-          <div style={{ textAlign: 'right' }}>
-            <p style={{ fontSize: 11, color: '#888', fontWeight: 600, margin: '0 0 2px' }}>Taxa de poupança</p>
-            <p style={{ fontSize: 22, fontWeight: 800, color: sobra >= 0 ? '#1E8449' : '#C0392B', margin: 0 }}>
-              {sobra >= 0 ? fmtPct(taxa) : '—'}
-            </p>
-          </div>
+          <p style={{ fontSize: 12, fontWeight: 500, color: C.greenDark, margin: '0 0 6px' }}>
+            ✨ Recomendação da IA
+          </p>
+          <p style={{ fontSize: 12, color: C.greenDark, lineHeight: 1.5, margin: 0 }}>
+            {recomendacao}
+          </p>
         </div>
 
-        {/* ── Limite diário (só se positivo) ── */}
-        {limiteDiario > 0 && (
+        {/* ── Ponto de atenção (condicional) ── */}
+        {(sobra < 0 || expensesPct > 70) && (
           <div style={{
-            background: '#fff', borderRadius: 16,
-            padding: '14px 18px', marginBottom: 10,
-            border: '1.5px solid #EEEDFE',
+            background: C.coralBg, borderRadius: 14,
+            padding: 14, marginBottom: 16,
           }}>
-            <p style={{ fontSize: 11, color: '#AAA', fontWeight: 600, margin: '0 0 2px' }}>Limite saudável por dia</p>
-            <p style={{ fontSize: 24, fontWeight: 800, color: primary, margin: '0 0 2px' }}>
-              {fmtBRL(limiteDiario)}
+            <p style={{ fontSize: 12, fontWeight: 500, color: C.coralDark, margin: '0 0 4px' }}>
+              ⚠️ Ponto de atenção
             </p>
-            <p style={{ fontSize: 11, color: '#BBB', margin: 0 }}>
-              Valor de referência para manter seu equilíbrio mensal.
+            <p style={{ fontSize: 12, color: C.coralDark, lineHeight: 1.5, margin: 0 }}>
+              {sobra < 0
+                ? 'Suas despesas estão acima da sua renda. Vamos identificar onde é possível ajustar.'
+                : `Suas despesas representam ${fmtPct(expensesPct)} da renda. O ideal é estar abaixo de 70%.`}
             </p>
           </div>
         )}
 
-        {/* ── Perfil financeiro ── */}
-        <div style={{
-          background: perfil.bg, borderRadius: 16,
-          padding: '16px 18px', marginBottom: 10,
-          border: `1.5px solid ${perfil.color}33`,
-        }}>
-          <p style={{ fontSize: 11, color: perfil.color, fontWeight: 700, margin: '0 0 2px' }}>Perfil financeiro</p>
-          <p style={{ fontSize: 18, fontWeight: 800, color: perfil.color, margin: '0 0 6px' }}>{perfil.label}</p>
-          <p style={{ fontSize: 13, color: '#555', margin: 0, lineHeight: 1.5 }}>{perfil.descricao}</p>
-        </div>
-
-        {/* ── Recomendação ── */}
-        <div style={{
-          background: '#fff', borderRadius: 16,
-          padding: '18px', marginBottom: 28,
-          border: '1.5px solid #EEEDFE',
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-            <span style={{ fontSize: 18 }}>🤖</span>
-            <p style={{ fontSize: 12, color: primary, fontWeight: 700, margin: 0 }}>
-              Recomendação do DNA Financeiro
-            </p>
-          </div>
-          <p style={{ fontSize: 14, color: '#333', lineHeight: 1.6, margin: 0 }}>{recomendacao}</p>
-        </div>
-
         {/* ── Botões ── */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <a href={`/${unitSlug}/painel`} style={btnPrimary(primary)}>
-            Ir para meu painel →
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: sobra < 0 || expensesPct > 70 ? 0 : 6 }}>
+          <a href={`/${unitSlug}/painel`} style={btnPrimary}>
+            Ver meu painel →
           </a>
-          <a href={`/${unitSlug}`} style={btnSecondary(primary)}>
+          <a href={`/${unitSlug}`} style={btnSecondary}>
             Melhorar meu diagnóstico
           </a>
-          <a href={`/${unitSlug}/despesas`} style={btnSecondary(primary)}>
+          <a href={`/${unitSlug}/despesas`} style={btnSecondary}>
             Cadastrar uma despesa
           </a>
         </div>
@@ -292,32 +312,44 @@ export default async function DiagnosticoPage({ params }: Props) {
 
 // ── Sub-componentes ────────────────────────────────────────────────────────────
 
-function InfoCard({ label, value }: { label: string; value: string }) {
+function MiniStat({ label, value, valueColor = C.text }: {
+  label: string; value: string; valueColor?: string
+}) {
   return (
     <div style={{
-      background: '#fff', borderRadius: 16,
-      padding: '14px 16px', border: '1.5px solid #EEEDFE',
+      flex: 1, background: 'rgba(255,255,255,0.5)',
+      borderRadius: 12, padding: '10px 12px', textAlign: 'center',
     }}>
-      <p style={{ fontSize: 11, color: '#AAA', fontWeight: 600, margin: '0 0 4px' }}>{label}</p>
-      <p style={{ fontSize: 16, fontWeight: 800, color: '#1A1A2E', margin: 0 }}>{value}</p>
+      <div style={{ fontSize: 17, fontWeight: 500, color: valueColor }}>{value}</div>
+      <div style={{ fontSize: 10, color: C.textSec, marginTop: 2 }}>{label}</div>
     </div>
   )
 }
 
-function btnPrimary(color: string): CSSProperties {
-  return {
-    display: 'block', textAlign: 'center', textDecoration: 'none',
-    background: color, color: '#fff',
-    borderRadius: 14, padding: '15px 20px',
-    fontSize: 15, fontWeight: 700,
-  }
+function InfoCard({ label, value, valueColor = C.text }: {
+  label: string; value: string; valueColor?: string
+}) {
+  return (
+    <div style={{
+      background: '#fff', borderRadius: 14,
+      padding: '12px 14px', border: `0.5px solid ${C.border}`,
+    }}>
+      <p style={{ fontSize: 11, color: C.textSec, fontWeight: 500, margin: '0 0 4px' }}>{label}</p>
+      <p style={{ fontSize: 16, fontWeight: 500, color: valueColor, margin: 0 }}>{value}</p>
+    </div>
+  )
 }
 
-function btnSecondary(color: string): CSSProperties {
-  return {
-    display: 'block', textAlign: 'center', textDecoration: 'none',
-    background: '#EEEDFE', color: color,
-    borderRadius: 14, padding: '15px 20px',
-    fontSize: 15, fontWeight: 600,
-  }
+const btnPrimary: CSSProperties = {
+  display: 'block', textAlign: 'center', textDecoration: 'none',
+  background: C.purple, color: '#fff',
+  borderRadius: 12, padding: '14px 20px',
+  fontSize: 15, fontWeight: 500,
+}
+
+const btnSecondary: CSSProperties = {
+  display: 'block', textAlign: 'center', textDecoration: 'none',
+  background: C.purpleBg, color: C.purpleDeep,
+  borderRadius: 12, padding: '14px 20px',
+  fontSize: 15, fontWeight: 500,
 }
