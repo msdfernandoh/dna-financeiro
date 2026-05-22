@@ -1276,17 +1276,18 @@ ON CONFLICT (slug) DO NOTHING;
 
 -- 8.1 Tabelas — RLS e FORCE RLS habilitados
 SELECT
-  tablename,
-  rowsecurity        AS rls_enabled,
-  forcerowsecurity   AS rls_forced
-FROM pg_tables
-WHERE schemaname = 'public'
-  AND tablename IN (
+  t.tablename,
+  t.rowsecurity          AS rls_enabled,
+  c.relforcerowsecurity  AS rls_forced
+FROM pg_tables t
+JOIN pg_class c ON c.relname = t.tablename AND c.relnamespace = 'public'::regnamespace
+WHERE t.schemaname = 'public'
+  AND t.tablename IN (
     'units','profiles','unit_invites','campaigns','leads',
     'opportunities','daily_questions','question_answers',
     'expenses','dreams','achievements','audit_logs'
   )
-ORDER BY tablename;
+ORDER BY t.tablename;
 -- Esperado: rls_enabled = true para todas as 12 tabelas.
 -- rls_forced = true para: leads, expenses, question_answers, daily_questions, audit_logs.
 
