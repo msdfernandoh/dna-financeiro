@@ -54,7 +54,7 @@ export function RegisterForm({ unit, createLeadAction }: RegisterFormProps) {
   const [incomeDisplay,  setIncomeDisplay]  = useState('')
   const [expenseDisplay, setExpenseDisplay] = useState('')
   const [phone, setPhone]   = useState('')
-  const [step,  setStep]    = useState<'dream' | 'form'>('dream')
+  const [step,  setStep]    = useState<'welcome' | 'dream' | 'form'>('welcome')
   const [utms,  setUtms]    = useState({
     utm_source: '', utm_medium: '', utm_campaign: '', utm_term: '', utm_content: '',
   })
@@ -77,6 +77,166 @@ export function RegisterForm({ unit, createLeadAction }: RegisterFormProps) {
 
   const primary = unit.primary_color ? `#${unit.primary_color.replace('#', '')}` : C.purple
   const progress = step === 'dream' ? 33 : 66
+
+  // ── Tela de boas-vindas ────────────────────────────────────────────────────
+  if (step === 'welcome') {
+    return (
+      <div ref={topRef} style={{
+        fontFamily: "'DM Sans', system-ui, sans-serif",
+        minHeight: '100dvh', position: 'relative', overflow: 'hidden',
+        display: 'flex', flexDirection: 'column', alignItems: 'center',
+        background: 'linear-gradient(160deg, #0d0b1e 0%, #1a1547 55%, #0c0b1a 100%)',
+        backgroundImage: [
+          'linear-gradient(160deg, #0d0b1e 0%, #1a1547 55%, #0c0b1a 100%)',
+          'radial-gradient(rgba(255,255,255,0.03) 1px, transparent 1px)',
+        ].join(', '),
+        backgroundSize: 'cover, 28px 28px',
+      }}>
+        <style>{`
+          @keyframes dna-pulse {
+            0%,100%{opacity:.55;transform:scale(1)}
+            50%{opacity:1;transform:scale(1.08)}
+          }
+          @keyframes dna-float {
+            0%,100%{transform:translateY(0)}
+            50%{transform:translateY(-9px)}
+          }
+          @keyframes dna-glow-spin {
+            from{transform:rotate(0deg)}
+            to{transform:rotate(360deg)}
+          }
+        `}</style>
+
+        {/* Orbs de luz */}
+        <div style={{
+          position:'absolute', top:-140, right:-100, width:420, height:420,
+          background:'radial-gradient(circle, rgba(127,119,221,.38) 0%, transparent 65%)',
+          animation:'dna-pulse 5s ease-in-out infinite', pointerEvents:'none',
+        }}/>
+        <div style={{
+          position:'absolute', bottom:-100, left:-120, width:380, height:380,
+          background:'radial-gradient(circle, rgba(29,158,117,.22) 0%, transparent 65%)',
+          animation:'dna-pulse 6s ease-in-out infinite 1.5s', pointerEvents:'none',
+        }}/>
+        <div style={{
+          position:'absolute', top:'38%', left:'55%', width:260, height:260,
+          background:'radial-gradient(circle, rgba(239,159,39,.12) 0%, transparent 65%)',
+          animation:'dna-pulse 7s ease-in-out infinite 3s', pointerEvents:'none',
+        }}/>
+
+        {/* Conteúdo */}
+        <div style={{
+          flex:1, display:'flex', flexDirection:'column', alignItems:'center',
+          justifyContent:'center', padding:'52px 24px 40px',
+          position:'relative', zIndex:1, width:'100%', maxWidth:420,
+        }}>
+
+          {/* Ícone com anel de glow */}
+          <div style={{
+            position:'relative', marginBottom:28,
+            animation:'dna-float 3.5s ease-in-out infinite',
+          }}>
+            <div style={{
+              position:'absolute', inset:-10,
+              background:'conic-gradient(from 0deg, rgba(127,119,221,0), rgba(127,119,221,.6), rgba(29,158,117,.4), rgba(127,119,221,0))',
+              borderRadius:'50%', animation:'dna-glow-spin 4s linear infinite', filter:'blur(4px)',
+            }}/>
+            <div style={{
+              width:80, height:80, borderRadius:24,
+              background:'linear-gradient(135deg, rgba(127,119,221,.22), rgba(83,74,183,.12))',
+              border:'1.5px solid rgba(127,119,221,.45)',
+              backdropFilter:'blur(14px)', WebkitBackdropFilter:'blur(14px)',
+              display:'flex', alignItems:'center', justifyContent:'center', fontSize:40,
+              position:'relative',
+              boxShadow:'0 0 0 10px rgba(127,119,221,.07), 0 0 60px rgba(127,119,221,.3)',
+            }}>🧬</div>
+          </div>
+
+          {/* Título */}
+          <h1 style={{
+            fontSize:38, fontWeight:700, color:'#fff', textAlign:'center',
+            lineHeight:1.15, margin:'0 0 6px', letterSpacing:-0.8,
+          }}>
+            DNA
+            <br/>
+            <span style={{
+              background:'linear-gradient(135deg, #C4BFFF 0%, #8F87E8 40%, #534AB7 100%)',
+              WebkitBackgroundClip:'text', WebkitTextFillColor:'transparent', backgroundClip:'text',
+            }}>Financeiro</span>
+          </h1>
+
+          <p style={{
+            fontSize:14, color:'rgba(255,255,255,.52)', textAlign:'center',
+            lineHeight:1.7, margin:'0 0 30px', maxWidth:270,
+          }}>
+            Seu consultor de IA para organizar sua vida, conquistar sonhos e encontrar novas oportunidades.
+          </p>
+
+          {/* Card glassmorphism com features */}
+          <div style={{
+            width:'100%',
+            background:'rgba(255,255,255,.055)',
+            border:'1px solid rgba(255,255,255,.1)',
+            borderRadius:20, overflow:'hidden',
+            backdropFilter:'blur(24px)', WebkitBackdropFilter:'blur(24px)',
+            boxShadow:'0 8px 40px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.09)',
+            marginBottom:24,
+          }}>
+            {([
+              { icon:'📊', text:'Diagnóstico personalizado', accent:'rgba(127,119,221,.22)', tc:'#A89EFF' },
+              { icon:'🎯', text:'Metas e sonhos com plano real', accent:'rgba(127,119,221,.22)', tc:'#A89EFF' },
+              { icon:'💰', text:'Oportunidades de renda extra', accent:'rgba(29,158,117,.2)', tc:'#4ECBA3' },
+            ] as const).map(({ icon, text, accent, tc }, i) => (
+              <div key={i} style={{
+                display:'flex', alignItems:'center', gap:14, padding:'15px 18px',
+                borderBottom: i < 2 ? '1px solid rgba(255,255,255,.07)' : 'none',
+              }}>
+                <div style={{
+                  width:36, height:36, borderRadius:10, background:accent, flexShrink:0,
+                  display:'flex', alignItems:'center', justifyContent:'center', fontSize:17,
+                }}>{icon}</div>
+                <span style={{ fontSize:14, color:tc, fontWeight:500 }}>{text}</span>
+              </div>
+            ))}
+          </div>
+
+          {/* Botões */}
+          <div style={{ width:'100%', display:'flex', flexDirection:'column', gap:10 }}>
+            <button
+              type="button"
+              onClick={() => setStep('dream')}
+              style={{
+                width:'100%', border:'none', borderRadius:14, padding:'16px',
+                fontSize:16, fontWeight:600, cursor:'pointer', fontFamily:'inherit',
+                background:'linear-gradient(135deg, #7F77DD 0%, #534AB7 100%)',
+                color:'#fff',
+                boxShadow:'0 4px 28px rgba(127,119,221,.5), inset 0 1px 0 rgba(255,255,255,.18)',
+                letterSpacing:0.2,
+              }}
+            >
+              Começar minha jornada
+            </button>
+            <button
+              type="button"
+              onClick={() => setStep('form')}
+              style={{
+                width:'100%', borderRadius:14, padding:'16px',
+                fontSize:15, fontWeight:400, cursor:'pointer', fontFamily:'inherit',
+                background:'rgba(255,255,255,.06)', color:'rgba(255,255,255,.6)',
+                border:'1px solid rgba(255,255,255,.13)',
+              }}
+            >
+              Já tenho conta — entrar
+            </button>
+          </div>
+
+          <p style={{ fontSize:11, color:'rgba(255,255,255,.22)', marginTop:18, textAlign:'center' }}>
+            🔒 Gratuito · Seguro · Sem compromisso
+          </p>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div ref={topRef} style={{ fontFamily: "'DM Sans', system-ui, sans-serif", background: C.bgApp, minHeight: '100dvh' }}>
