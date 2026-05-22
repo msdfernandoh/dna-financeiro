@@ -19,9 +19,10 @@ const nextConfig: NextConfig = {
   },
 
   // Bloqueia slugs reservados de serem usados como unitSlug
-  // Impede que /admin, /api, etc. caiam na rota dinâmica [unitSlug]
+  // Impede que /master, /auth, etc. caiam na rota dinâmica [unitSlug]
+  // ATENÇÃO: /admin e /api são excluídos — têm rotas próprias no App Router
   async redirects() {
-    const reserved = ['admin', 'master', 'api', 'auth', 'privacidade', '_next', 'static']
+    const reserved = ['master', 'auth', 'privacidade', '_next', 'static']
     return reserved.map((slug) => ({
       source: `/${slug}`,
       destination: '/',

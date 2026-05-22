@@ -24,7 +24,7 @@
 import { cookies, headers } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
-import type { LeadCreateInput, CreateLeadResult, CreateExpenseResult, FormErrors } from '@/types/database'
+import type { LeadCreateInput, CreateLeadResult, CreateExpenseResult, SaveDnaResult, FormErrors } from '@/types/database'
 
 // ---------------------------------------------------------------------------
 // Validação dos campos do formulário
@@ -368,4 +368,127 @@ export async function createExpense(
   }
 
   redirect(`/${unitSlug}/despesas/sucesso`)
+}
+
+// ---------------------------------------------------------------------------
+// Server Action: Salvar respostas DNA Financeiro
+//
+// SEGURANÇA:
+//   • unitSlug vinculado pelo Server Component — nunca do browser
+//   • lead_id e unit_id resolvidos do cookie + banco — nunca do FormData
+//   • Respostas sensíveis não expostas ao frontend; unit_admin não acessa
+//   • Upsert idempotente: lead pode re-salvar sem duplicar
+// ---------------------------------------------------------------------------
+
+const VALID_STEP_KEYS = [
+  'realidade', 'trabalho', 'dividas', 'renda_extra', 'formacao', 'sonhos',
+] as const
+
+export async function saveDnaAnswers(
+  unitSlug: string,
+  _prevState: SaveDnaResult | null,
+  formData: FormData,
+): Promise<SaveDnaResult> {
+  // 1. Decodificar cookie
+  const cookieStore = await cookies()
+  const token = cookieStore.get('dna_lead_token')?.value
+  if (!token) return { success: false, error: 'Sessão não encontrada. Cadastre-se novamente.' }
+
+  let leadId: string
+  try {
+    const decoded = Buffer.from(token, 'base64url').toString('utf-8')
+    leadId = decoded.split(':')[0]
+    if (!leadId || !/^[0-9a-f-]{36}$/.test(leadId)) throw new Error('invalid')
+  } catch {
+    return { success: false, error: 'Sessão inválida.' }
+  }
+
+  // 2. Validar step_key e step_num
+  const stepKey = formData.get('step_key')?.toString().trim() ?? ''
+  const stepNum = parseInt(formData.get('step_num')?.toString() ?? '0', 10)
+
+  if (!VALID_STEP_KEYS.includes(stepKey as typeof VALID_STEP_KEYS[number])) {
+    return { success: false, error: 'Etapa inválida.' }
+  }
+  if (stepNum < 1 || stepNum > 6) {
+    return { success: false, error: 'Número de etapa inválido.' }
+  }
+
+  // 3. Resolver lead + unit_id do banco (valida unit_slug → impede cross-unit)
+  const supabase = createServerSupabaseClient()
+  const { data: lead, error: leadError } = await supabase
+    .from('leads')
+    .select('id, unit_id, dna_stage, dna_progress')
+    .eq('id', leadId)
+    .eq('unit_slug', unitSlug)
+    .is('deleted_at', null)
+    .single()
+
+  if (leadError || !lead) {
+    return { success: false, error: 'Sessão inválida ou expirada. Tente novamente.' }
+  }
+
+  // 4. Coletar respostas do FormData (campos q_*, qt_*, at_*)
+  //    q_{key}  = answer
+  //    qt_{key} = question_text
+  //    at_{key} = answer_type
+  const answersMap: Record<string, { text: string; value: string; type: string }> = {}
+
+  formData.forEach((rawValue, fieldName) => {
+    const value = rawValue.toString().trim()
+    if (fieldName.startsWith('q_') && value) {
+      const key = fieldName.slice(2)
+      if (!answersMap[key]) answersMap[key] = { text: '', value: '', type: 'select' }
+      answersMap[key].value = value
+    } else if (fieldName.startsWith('qt_')) {
+      const key = fieldName.slice(3)
+      if (!answersMap[key]) answersMap[key] = { text: '', value: '', type: 'select' }
+      answersMap[key].text = value
+    } else if (fieldName.startsWith('at_')) {
+      const key = fieldName.slice(3)
+      if (!answersMap[key]) answersMap[key] = { text: '', value: '', type: 'select' }
+      answersMap[key].type = value
+    }
+  })
+
+  // Filtrar perguntas que têm resposta e texto da pergunta
+  const rows = Object.entries(answersMap)
+    .filter(([, a]) => a.value && a.text)
+    .map(([question_key, a]) => ({
+      unit_id:       lead.unit_id,   // ← do banco, nunca do browser
+      lead_id:       lead.id,        // ← do cookie
+      step_key:      stepKey,
+      question_key,
+      question_text: a.text,
+      answer:        a.value,
+      answer_type:   a.type,
+    }))
+
+  // Se não há respostas, apenas avança o progresso (etapa pulada)
+  if (rows.length > 0) {
+    const { error: upsertError } = await supabase
+      .from('dna_answers')
+      .upsert(rows, { onConflict: 'lead_id,question_key' })
+
+    if (upsertError) {
+      console.error('[saveDnaAnswers] upsert error:', upsertError.message)
+      return { success: false, error: 'Erro ao salvar respostas. Tente novamente.' }
+    }
+  }
+
+  // 5. Atualizar dna_stage e dna_progress no lead (nunca retroage)
+  const newStage    = Math.min(6, Math.max(lead.dna_stage, stepNum === 6 ? 6 : stepNum + 1))
+  const newProgress = Math.min(100, Math.max(lead.dna_progress, Math.round(stepNum / 6 * 100)))
+
+  await supabase
+    .from('leads')
+    .update({ dna_stage: newStage, dna_progress: newProgress })
+    .eq('id', lead.id)
+
+  // 6. Redirecionar para a próxima etapa (ou painel se completou tudo)
+  const nextStage = stepNum >= 6 ? 0 : stepNum + 1
+  if (nextStage === 0) {
+    redirect(`/${unitSlug}/painel?dna=completo`)
+  }
+  redirect(`/${unitSlug}/dna?etapa=${nextStage}`)
 }

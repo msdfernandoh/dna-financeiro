@@ -20,18 +20,6 @@ const DREAMS = [
 type DreamValue = (typeof DREAMS)[number]['value']
 
 // ── Formatters ────────────────────────────────────────────────────────────────
-function formatCurrency(raw: string): string {
-  // Keep only digits — user types "6000" and sees "6.000"
-  const digits = raw.replace(/\D/g, '')
-  if (!digits) return ''
-  const num = parseInt(digits, 10)
-  if (isNaN(num)) return ''
-  return num.toLocaleString('pt-BR')
-}
-
-function parseCurrencyToFloat(formatted: string): string {
-  return formatted.replace(/\./g, '').replace(',', '.')
-}
 
 function formatPhone(raw: string): string {
   const d = raw.replace(/\D/g, '').slice(0, 11)
@@ -52,8 +40,8 @@ export function RegisterForm({ unit, createLeadAction }: RegisterFormProps) {
   const [state, formAction, isPending] = useActionState(createLeadAction, null)
 
   const [selectedDream, setSelectedDream] = useState<DreamValue | ''>('')
-  const [incomeDisplay,  setIncomeDisplay]  = useState('')
-  const [expenseDisplay, setExpenseDisplay] = useState('')
+  const [income,   setIncome]   = useState('')  // valor livre: "2.500,00" ou "2500"
+  const [expenses, setExpenses] = useState('')  // idem
   const [phone, setPhone]   = useState('')
   const [step,  setStep]    = useState<'welcome' | 'dream' | 'form'>('welcome')
   const [utms,  setUtms]    = useState({
@@ -424,9 +412,9 @@ export function RegisterForm({ unit, createLeadAction }: RegisterFormProps) {
                   <div style={{ position: 'relative' }}>
                     <span style={prefixSt}>R$</span>
                     <input name="monthly_income" type="text"
-                      value={incomeDisplay}
-                      onChange={e => setIncomeDisplay(formatCurrency(e.target.value))}
-                      placeholder="Ex: 3500" inputMode="numeric" required
+                      value={income}
+                      onChange={e => setIncome(e.target.value)}
+                      placeholder="Ex: 2.500,00" required
                       style={{ ...inputSt, paddingLeft: 44 }} />
                   </div>
                 </Field>
@@ -439,9 +427,9 @@ export function RegisterForm({ unit, createLeadAction }: RegisterFormProps) {
                   <div style={{ position: 'relative' }}>
                     <span style={prefixSt}>R$</span>
                     <input name="monthly_expenses" type="text"
-                      value={expenseDisplay}
-                      onChange={e => setExpenseDisplay(formatCurrency(e.target.value))}
-                      placeholder="Ex: 2800" inputMode="numeric" required
+                      value={expenses}
+                      onChange={e => setExpenses(e.target.value)}
+                      placeholder="Ex: 1.800,00" required
                       style={{ ...inputSt, paddingLeft: 44 }} />
                   </div>
                 </Field>

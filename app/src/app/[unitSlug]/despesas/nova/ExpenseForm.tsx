@@ -105,20 +105,20 @@ export function ExpenseForm({ unitSlug, today, createExpenseAction }: Props) {
                 {amountDigits ? amountDisplay : '0,00'}
               </span>
             </div>
-            {/* Input oculto visualmente mas acessível — aceita apenas dígitos */}
+            {/* Input de valor — exibe R$ 1.000,00 em tempo real */}
             <div style={{ position: 'relative' }}>
               <input
                 type="tel"
                 inputMode="numeric"
-                value={amountDigits}
+                value={amountDigits ? `R$ ${amountDisplay}` : ''}
                 onChange={e => setAmount(e.target.value.replace(/\D/g, '').slice(0, 9))}
-                placeholder="Digite o valor em centavos (ex: 4550 = R$ 45,50)"
+                placeholder="R$ 0,00"
                 style={{
                   width: '100%', boxSizing: 'border-box',
                   background: C.bgApp, border: `0.5px solid ${state?.success === false && state.field === 'amount' ? C.coral : 'rgba(0,0,0,0.1)'}`,
                   borderRadius: 10, padding: '10px 12px',
-                  fontSize: 13, fontFamily: 'inherit', color: C.text,
-                  outline: 'none', textAlign: 'center',
+                  fontSize: 15, fontFamily: 'inherit', color: C.text,
+                  outline: 'none', textAlign: 'center', fontWeight: 500,
                 }}
               />
             </div>

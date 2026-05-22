@@ -131,6 +131,55 @@ export type CreateExpenseResult =
   | { success: false; error: string; field?: string }
 
 // ---------------------------------------------------------------------------
+// Resposta da Server Action de DNA Financeiro
+// ---------------------------------------------------------------------------
+
+export type SaveDnaResult =
+  | { success: true;  nextStage: number }
+  | { success: false; error: string }
+
+// Registro de resposta DNA — subset para o Client Component
+export interface DnaAnswerRecord {
+  step_key:     string
+  question_key: string
+  answer:       string
+  answer_type:  string
+}
+
+// ---------------------------------------------------------------------------
+// Admin: Sessão autenticada (espelho de AdminSession em lib/supabase/admin.ts)
+// Definido aqui também para uso nos tipos de Server Actions sem circular dep
+// ---------------------------------------------------------------------------
+
+export type OppType = 'event' | 'course' | 'challenge' | 'job' | 'banner' | 'partner'
+
+export interface OpportunityAdmin {
+  id:           string
+  unit_id:      string
+  type:         OppType
+  title:        string
+  description:  string | null
+  cta_label:    string | null
+  cta_url:      string | null
+  target_dream: string | null
+  featured:     boolean
+  active:       boolean
+  position:     number
+  starts_at:    string | null   // ISO UTC — null = sem restrição de início
+  ends_at:      string | null   // ISO UTC — null = sem prazo de expiração
+  created_at:   string
+  deleted_at:   string | null
+}
+
+// Status de período calculado em runtime (não persistido no banco)
+export type OppPeriodStatus = 'no-period' | 'scheduled' | 'active' | 'expired'
+
+// Resultado das Server Actions admin de oportunidades
+export type AdminOppResult =
+  | { success: true }
+  | { success: false; error: string; field?: string }
+
+// ---------------------------------------------------------------------------
 // Erros de validação do formulário
 // ---------------------------------------------------------------------------
 

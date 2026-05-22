@@ -3,7 +3,8 @@ import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { C } from '@/app/components/ui'
-import { DailyQuestion } from './DailyQuestion'
+import { DailyQuestion }     from './DailyQuestion'
+import { FeaturedOppCard }   from './_FeaturedOppCard'
 
 // ── Categorias de despesa ─────────────────────────────────────────────────────
 
@@ -78,13 +79,14 @@ export default async function PainelPage({ params }: Props) {
     monthly_expenses: number | null
     city: string | null
     dna_progress: number | null
+    unit_id: string
   }
 
   try {
     const supabase = createServerSupabaseClient()
     const { data, error } = await supabase
       .from('leads')
-      .select('name, main_dream, monthly_income, monthly_expenses, city, dna_progress')
+      .select('name, main_dream, monthly_income, monthly_expenses, city, dna_progress, unit_id')
       .eq('id', leadId)
       .eq('unit_slug', unitSlug)
       .is('deleted_at', null)
@@ -96,7 +98,7 @@ export default async function PainelPage({ params }: Props) {
     redirect(`/${unitSlug}`)
   }
 
-  // 4. Cálculos financeiros
+  // 4. Cálculos financeiros (unit_id usado apenas no servidor para queries)
   const income       = lead.monthly_income   ?? 0
   const expenses     = lead.monthly_expenses ?? 0
   const sobra        = income - expenses
@@ -126,6 +128,49 @@ export default async function PainelPage({ params }: Props) {
       .filter(e => e.expense_date === today)
       .reduce((sum, e) => sum + e.amount, 0)
   } catch { /* silently ignore */ }
+
+  // 6. Oportunidade em destaque (falha silenciosa → usa fallback por sonho)
+  let featuredOppTitle:      string | null = null
+  let featuredOppId:         string | null = null
+  let featuredOppType:       string | null = null
+  let featuredOppDream:      string | null = null
+  try {
+    const supabase3 = createServerSupabaseClient()
+    const nowIso = new Date().toISOString()
+    const { data: oppData } = await supabase3
+      .from('opportunities')
+      .select('id, title, type, target_dream')   // ← agora inclui id, type, target_dream
+      .eq('unit_id', lead.unit_id)               // ← unit_id do banco, nunca do browser
+      .eq('active', true)
+      .eq('featured', true)
+      .is('deleted_at', null)
+      .or(`starts_at.is.null,starts_at.lte.${nowIso}`)
+      .or(`ends_at.is.null,ends_at.gte.${nowIso}`)
+      .order('position', { ascending: true })
+      .limit(1)
+      .single()
+    featuredOppTitle = oppData?.title       ?? null
+    featuredOppId    = oppData?.id          ?? null
+    featuredOppType  = oppData?.type        ?? null
+    featuredOppDream = oppData?.target_dream ?? null
+  } catch { /* usa fallback abaixo */ }
+
+  // Fallback de oportunidade por sonho
+  const OPP_FALLBACK: Record<string, string> = {
+    casa:      'Palestra: Como sair do aluguel com planejamento financeiro',
+    carro:     'Simulação gratuita: Quanto falta para você comprar seu carro?',
+    negocio:   'Guia gratuito: Abra seu negócio sem entrar em dívidas',
+    viagem:    'Desafio: Guarde para sua viagem dos sonhos em 12 meses',
+    reserva:   'Desafio: Crie sua reserva de emergência em 90 dias',
+    faculdade: 'Como financiar sua faculdade sem comprometer o orçamento',
+    reforma:   'Palestra: Planeje a reforma da sua casa sem dívidas',
+    dividas:   'Programa completo de quitação de dívidas — reorganize agora',
+    moto:      'Simulação: Quanto guardar por mês para comprar sua moto?',
+  }
+  const isFeaturedFallback = !featuredOppTitle
+  const featuredTitle = featuredOppTitle
+    ?? OPP_FALLBACK[dream]
+    ?? 'Aula gratuita: Como organizar sua vida financeira em 30 dias'
 
   // Saudação por hora do servidor
   const hour     = new Date().getHours()
@@ -316,25 +361,14 @@ export default async function PainelPage({ params }: Props) {
         </a>
 
         {/* ── Oportunidade da semana ── */}
-        <div style={{
-          background: C.green, borderRadius: 16,
-          padding: '16px', marginBottom: 10,
-        }}>
-          <span style={{
-            display: 'inline-block',
-            background: 'rgba(255,255,255,0.2)', color: '#fff',
-            fontSize: 11, padding: '2px 10px', borderRadius: 99, marginBottom: 8,
-          }}>Oportunidade da semana</span>
-          <p style={{ fontSize: 13, fontWeight: 500, color: '#fff', lineHeight: 1.5, margin: '0 0 10px' }}>
-            Palestra gratuita: Como organizar sua vida financeira em 30 dias
-          </p>
-          <a href={`/${unitSlug}/oportunidades`} style={{
-            display: 'inline-block',
-            background: 'rgba(255,255,255,0.2)', color: '#fff',
-            borderRadius: 8, padding: '6px 14px',
-            fontSize: 12, textDecoration: 'none', fontWeight: 500,
-          }}>Ver oportunidades →</a>
-        </div>
+        <FeaturedOppCard
+          unitSlug={unitSlug}
+          title={featuredTitle}
+          oppId={featuredOppId}
+          oppType={featuredOppType}
+          targetDream={featuredOppDream}
+          isFallback={isFeaturedFallback}
+        />
 
         {/* ── Conquista desbloqueada ── */}
         <div style={{
