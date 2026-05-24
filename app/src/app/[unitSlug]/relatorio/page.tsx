@@ -13,7 +13,8 @@ import { cookies }  from 'next/headers'
 import { redirect } from 'next/navigation'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { C } from '@/app/components/ui'
-import { LeadBottomNav } from '@/app/components/LeadBottomNav'
+import { LeadBottomNav }      from '@/app/components/LeadBottomNav'
+import { PrintReportButton }  from './PrintReportButton'
 
 interface Props {
   params: Promise<{ unitSlug: string }>
@@ -458,6 +459,66 @@ export default async function RelatorioPage({ params }: Props) {
   return (
     <div style={{ fontFamily: "'DM Sans', system-ui, sans-serif", background: C.bgApp, minHeight: '100dvh' }}>
 
+      {/* ── Estilos de impressão (@media print) ── */}
+      <style>{`
+        @media print {
+          @page {
+            size: A4 portrait;
+            margin: 15mm 12mm;
+          }
+
+          /* Preserve background colors in cards */
+          body {
+            background: #ffffff !important;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+          }
+
+          /* Hide app chrome and interactive elements */
+          header          { display: none !important; }
+          .no-print       { display: none !important; }
+
+          /* Show print-only elements */
+          .print-only     { display: block !important; }
+
+          /* Remove decorative shadows */
+          * {
+            box-shadow: none !important;
+            text-shadow: none !important;
+          }
+
+          /* Main container: use full A4 width, remove bottom padding for nav */
+          main {
+            max-width: 100% !important;
+            padding: 0 2mm 15mm !important;
+            margin: 0 auto !important;
+          }
+
+          /* Avoid breaking cards mid-page where possible */
+          main > div {
+            page-break-inside: avoid;
+            break-inside: avoid;
+          }
+
+          /* Keep section titles with their first card */
+          h2 {
+            page-break-after: avoid;
+            break-after: avoid;
+          }
+
+          /* Links: keep color, remove underline */
+          a {
+            text-decoration: none !important;
+          }
+
+          /* Reduce gradient weight on cover — keep colors */
+          main > div:first-child {
+            page-break-after: avoid;
+            break-after: avoid;
+          }
+        }
+      `}</style>
+
       {/* ── Header ── */}
       <header style={{
         background: '#fff', borderBottom: `0.5px solid ${C.purpleBg}`,
@@ -480,6 +541,25 @@ export default async function RelatorioPage({ params }: Props) {
       </header>
 
       <main style={{ maxWidth: 480, margin: '0 auto', padding: '16px 16px 80px' }}>
+
+        {/* ── Cabeçalho exclusivo para impressão/PDF ── */}
+        <div className="print-only" style={{
+          display: 'none',
+          marginBottom: 18, paddingBottom: 14,
+          borderBottom: '2px solid #5B4FE8',
+        }}>
+          <p style={{ margin: '0 0 3px', fontSize: 20, fontWeight: 700, color: '#5B4FE8' }}>
+            🧬 Relatório DNA Financeiro
+          </p>
+          <p style={{ margin: '0 0 6px', fontSize: 12, color: '#555' }}>
+            Gerado em: {generated}
+          </p>
+          <p style={{ margin: 0, fontSize: 10, color: '#777', lineHeight: 1.5 }}>
+            Este relatório é uma orientação inicial baseada nas informações fornecidas pelo usuário.
+            Os dados refletem o que foi declarado no diagnóstico — não são auditados ou verificados.
+            Este documento não substitui orientação financeira profissional personalizada.
+          </p>
+        </div>
 
         {/* ── CAPA ── */}
         <div style={{
@@ -1084,9 +1164,9 @@ export default async function RelatorioPage({ params }: Props) {
         </div>
 
         {/* ══════════════════════════════════════════════════════════════════════
-            BOTÕES DE AÇÃO
+            BOTÕES DE AÇÃO  (ocultos na impressão — substituídos pelo PDF)
         ═══════════════════════════════════════════════════════════════════════ */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 4 }}>
+        <div className="no-print" style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 4 }}>
           <a href={`/${unitSlug}/painel`} style={{
             display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
             background: C.purple, color: '#fff', borderRadius: 14, padding: '15px 20px',
@@ -1106,22 +1186,8 @@ export default async function RelatorioPage({ params }: Props) {
           </a>
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-            {/* Gerar PDF — em breve */}
-            <div style={{
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              flexDirection: 'column', gap: 4,
-              background: 'rgba(0,0,0,0.04)', borderRadius: 14, padding: '14px 12px',
-              border: `1px dashed ${C.border}`, cursor: 'not-allowed',
-              position: 'relative',
-            }}>
-              <span style={{ fontSize: 18 }}>📄</span>
-              <span style={{ fontSize: 12, fontWeight: 600, color: C.textSec }}>Gerar PDF</span>
-              <span style={{
-                position: 'absolute', top: 8, right: 8,
-                background: C.amberBg, color: C.amberDark,
-                fontSize: 8, fontWeight: 700, padding: '2px 6px', borderRadius: 99,
-              }}>EM BREVE</span>
-            </div>
+            {/* Gerar PDF — window.print() */}
+            <PrintReportButton />
 
             {/* Falar com consultor */}
             <a href={`/${unitSlug}/painel`} style={{
@@ -1136,15 +1202,29 @@ export default async function RelatorioPage({ params }: Props) {
           </div>
         </div>
 
-        {/* Rodapé */}
+        {/* Rodapé padrão (visível na tela e no PDF) */}
         <p style={{ textAlign: 'center', fontSize: 10, color: C.textTer, marginTop: 24, lineHeight: 1.5 }}>
           🔒 Relatório privado e confidencial · DNA Financeiro<br />
           Gerado localmente com base nas suas informações · {generated}
         </p>
 
+        {/* Rodapé exclusivo para impressão/PDF */}
+        <div className="print-only" style={{
+          display: 'none',
+          marginTop: 20, paddingTop: 10,
+          borderTop: '0.5px solid #ddd',
+        }}>
+          <p style={{ margin: 0, fontSize: 9, color: '#999', textAlign: 'center', lineHeight: 1.6 }}>
+            DNA Financeiro — Diagnóstico financeiro inicial baseado em autorrelato do usuário.<br />
+            Este relatório não substitui orientação profissional personalizada. Consulte um especialista para decisões financeiras importantes.
+          </p>
+        </div>
+
       </main>
 
-      <LeadBottomNav unitSlug={unitSlug} />
+      <div className="no-print">
+        <LeadBottomNav unitSlug={unitSlug} />
+      </div>
     </div>
   )
 }
