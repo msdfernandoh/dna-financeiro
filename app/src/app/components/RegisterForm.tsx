@@ -205,18 +205,18 @@ export function RegisterForm({ unit, createLeadAction }: RegisterFormProps) {
             >
               Começar minha jornada
             </button>
-            <button
-              type="button"
-              onClick={() => setStep('form')}
+            <a
+              href={`/${unit.slug}/entrar`}
               style={{
-                width:'100%', borderRadius:14, padding:'16px',
+                display:'block', width:'100%', borderRadius:14, padding:'16px',
                 fontSize:15, fontWeight:400, cursor:'pointer', fontFamily:'inherit',
                 background:'rgba(255,255,255,.06)', color:'rgba(255,255,255,.6)',
                 border:'1px solid rgba(255,255,255,.13)',
+                textDecoration:'none', textAlign:'center', boxSizing:'border-box',
               }}
             >
               Já tenho conta — entrar
-            </button>
+            </a>
           </div>
 
           <p style={{ fontSize:11, color:'rgba(255,255,255,.22)', marginTop:18, textAlign:'center' }}>

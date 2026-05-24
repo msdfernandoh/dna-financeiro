@@ -110,10 +110,15 @@ export default async function PainelPage({ params }: Props) {
   const firstName = lead.name.split(' ')[0]
   const avatar    = initials(lead.name)
 
-  // 5. Buscar despesas recentes (não falha se tabela estiver vazia)
-  const today = new Date().toISOString().split('T')[0]
+  // 5. Buscar despesas do mês corrente (para totais de hoje / semana / mês)
+  const today        = new Date().toISOString().split('T')[0]
+  const firstOfMonth = `${today.slice(0, 7)}-01`
+  const weekAgo      = new Date(Date.now() - 6 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+
   let recentExpenses: { amount: number; category: string; description: string | null; expense_date: string }[] = []
   let todayTotal = 0
+  let weekTotal  = 0
+  let monthTotal = 0
   try {
     const supabase2 = createServerSupabaseClient()
     const { data: expData } = await supabase2
@@ -121,12 +126,14 @@ export default async function PainelPage({ params }: Props) {
       .select('amount, category, description, expense_date')
       .eq('lead_id', leadId)
       .is('deleted_at', null)
-      .order('created_at', { ascending: false })
-      .limit(3)
+      .gte('expense_date', firstOfMonth)
+      .order('expense_date', { ascending: false })
+      .order('created_at',   { ascending: false })
+      .limit(100)
     recentExpenses = expData ?? []
-    todayTotal = recentExpenses
-      .filter(e => e.expense_date === today)
-      .reduce((sum, e) => sum + e.amount, 0)
+    todayTotal = recentExpenses.filter(e => e.expense_date === today).reduce((s, e) => s + e.amount, 0)
+    weekTotal  = recentExpenses.filter(e => e.expense_date >= weekAgo).reduce((s, e) => s + e.amount, 0)
+    monthTotal = recentExpenses.reduce((s, e) => s + e.amount, 0)
   } catch { /* silently ignore */ }
 
   // 6. Oportunidade em destaque (falha silenciosa → usa fallback por sonho)
@@ -175,6 +182,18 @@ export default async function PainelPage({ params }: Props) {
   // Saudação por hora do servidor
   const hour     = new Date().getHours()
   const greeting = hour < 12 ? 'Bom dia' : hour < 18 ? 'Boa tarde' : 'Boa noite'
+
+  // Análise de gastos x renda (para card "Despesas x Receita")
+  const spendRatio  = income > 0 ? monthTotal / income : 0
+  const spendPct    = Math.min(Math.round(spendRatio * 100), 100)
+  const spendStatus: 'controle' | 'atencao' | 'risco' =
+    spendRatio < 0.8 ? 'controle' : spendRatio < 1 ? 'atencao' : 'risco'
+  const SPEND_STATUS: Record<typeof spendStatus, { label: string; color: string; bg: string; bar: string }> = {
+    controle: { label: 'Dentro do controle', color: C.greenDark,  bg: C.greenBg,  bar: C.green  },
+    atencao:  { label: 'Atenção',            color: C.amberDark,  bg: C.amberBg,  bar: C.amber  },
+    risco:    { label: 'Risco de estourar',  color: C.coralDark,  bg: C.coralBg,  bar: C.coral  },
+  }
+  const spendMeta = SPEND_STATUS[spendStatus]
 
   return (
     <div style={{ fontFamily: "'DM Sans', system-ui, sans-serif", background: C.bgApp, minHeight: '100dvh' }}>
@@ -233,9 +252,44 @@ export default async function PainelPage({ params }: Props) {
             }} />
           </div>
           <p style={{ fontSize: 11, color: C.textSec, margin: 0 }}>
-            Complete mais informações para receber dicas melhores.
+            {dnaProgress >= 100
+              ? '✅ DNA 100% completo — seu relatório está pronto!'
+              : 'Complete mais informações para receber dicas melhores.'}
           </p>
         </div>
+
+        {/* ── Card: Relatório pronto (só aparece quando DNA = 100%) ── */}
+        {dnaProgress >= 100 && (
+          <div style={{
+            background: `linear-gradient(135deg, ${C.purple} 0%, ${C.purpleDeep} 100%)`,
+            borderRadius: 16, padding: '16px', marginBottom: 10,
+            display: 'flex', alignItems: 'center', gap: 14,
+            boxShadow: `0 4px 20px ${C.purple}40`,
+          }}>
+            <div style={{
+              width: 46, height: 46, borderRadius: 14,
+              background: 'rgba(255,255,255,0.18)', flexShrink: 0,
+              display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24,
+            }}>📋</div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <p style={{ margin: '0 0 2px', fontSize: 13, fontWeight: 700, color: '#fff' }}>
+                Seu relatório está pronto!
+              </p>
+              <p style={{ margin: 0, fontSize: 11, color: 'rgba(255,255,255,0.8)', lineHeight: 1.4 }}>
+                Perfil, pontos fortes, plano de ação e oportunidades personalizadas.
+              </p>
+            </div>
+            <a href={`/${unitSlug}/relatorio`} style={{
+              flexShrink: 0,
+              background: '#fff', color: C.purpleDeep,
+              borderRadius: 10, padding: '8px 14px',
+              fontSize: 12, fontWeight: 700, textDecoration: 'none',
+              whiteSpace: 'nowrap',
+            }}>
+              Ver →
+            </a>
+          </div>
+        )}
 
         {/* ── Resumo financeiro — 4 cards ── */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 10 }}>
@@ -253,6 +307,66 @@ export default async function PainelPage({ params }: Props) {
             valueColor={C.purple}
           />
         </div>
+
+        {/* ── Despesas x Receita ── */}
+        {income > 0 && (
+          <div style={{
+            background: '#fff', borderRadius: 16,
+            padding: '14px 16px', marginBottom: 10,
+            border: `0.5px solid ${C.border}`,
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+              <span style={{ fontSize: 13, fontWeight: 500, color: C.text }}>💰 Gastos x Receita</span>
+              <span style={{
+                background: spendMeta.bg, color: spendMeta.color,
+                fontSize: 10, fontWeight: 600, padding: '2px 9px', borderRadius: 99,
+              }}>{spendMeta.label}</span>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 10 }}>
+              <div>
+                <p style={{ fontSize: 10, color: C.textSec, margin: '0 0 2px' }}>Renda aproximada</p>
+                <p style={{ fontSize: 14, fontWeight: 500, color: C.text, margin: 0 }}>{fmtBRL(income)}</p>
+              </div>
+              <div>
+                <p style={{ fontSize: 10, color: C.textSec, margin: '0 0 2px' }}>Gasto registrado no mês</p>
+                <p style={{ fontSize: 14, fontWeight: 500, color: monthTotal > 0 ? spendMeta.color : C.textSec, margin: 0 }}>
+                  {monthTotal > 0 ? fmtBRL(monthTotal) : 'Nenhum ainda'}
+                </p>
+              </div>
+              <div>
+                <p style={{ fontSize: 10, color: C.textSec, margin: '0 0 2px' }}>Despesas fixas (cadastro)</p>
+                <p style={{ fontSize: 14, fontWeight: 500, color: C.text, margin: 0 }}>{fmtBRL(expenses)}</p>
+              </div>
+              <div>
+                <p style={{ fontSize: 10, color: C.textSec, margin: '0 0 2px' }}>Sobra estimada</p>
+                <p style={{ fontSize: 14, fontWeight: 500, color: sobra >= 0 ? C.greenDark : C.coralDark, margin: 0 }}>
+                  {fmtBRL(sobra)}
+                </p>
+              </div>
+            </div>
+
+            {monthTotal > 0 && (
+              <>
+                <div style={{ background: 'rgba(0,0,0,0.06)', borderRadius: 99, height: 6, overflow: 'hidden', marginBottom: 4 }}>
+                  <div style={{
+                    background: spendMeta.bar, height: '100%', borderRadius: 99,
+                    width: `${spendPct}%`, transition: 'width 0.5s',
+                  }} />
+                </div>
+                <p style={{ fontSize: 10, color: C.textSec, margin: 0 }}>
+                  {spendPct}% da renda utilizado no mês · Hoje: {fmtBRL(todayTotal)} · Semana: {fmtBRL(weekTotal)}
+                </p>
+              </>
+            )}
+
+            {monthTotal === 0 && (
+              <p style={{ fontSize: 11, color: C.textTer, margin: 0 }}>
+                💡 Lance suas despesas para acompanhar seu controle financeiro em tempo real.
+              </p>
+            )}
+          </div>
+        )}
 
         {/* ── Sonho principal ── */}
         <div style={{
@@ -297,13 +411,27 @@ export default async function PainelPage({ params }: Props) {
         }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
             <span style={{ fontSize: 13, fontWeight: 500, color: C.text }}>Despesas registradas</span>
-            {todayTotal > 0 && (
-              <span style={{
-                background: C.coralBg, color: C.coralDark,
-                fontSize: 11, fontWeight: 500, padding: '2px 8px', borderRadius: 99,
-              }}>Hoje: {fmtBRL(todayTotal)}</span>
-            )}
+            <a href={`/${unitSlug}/despesas/nova`} style={{ fontSize: 11, color: C.purple, textDecoration: 'none', fontWeight: 500 }}>
+              + Lançar
+            </a>
           </div>
+          {monthTotal > 0 && (
+            <div style={{ display: 'flex', gap: 6, marginBottom: 12, flexWrap: 'wrap' }}>
+              {todayTotal > 0 && (
+                <span style={{ background: C.coralBg, color: C.coralDark, fontSize: 11, fontWeight: 500, padding: '3px 10px', borderRadius: 99 }}>
+                  Hoje {fmtBRL(todayTotal)}
+                </span>
+              )}
+              {weekTotal > 0 && (
+                <span style={{ background: C.amberBg, color: C.amberDark, fontSize: 11, fontWeight: 500, padding: '3px 10px', borderRadius: 99 }}>
+                  Semana {fmtBRL(weekTotal)}
+                </span>
+              )}
+              <span style={{ background: C.purpleBg, color: C.purpleDeep, fontSize: 11, fontWeight: 500, padding: '3px 10px', borderRadius: 99 }}>
+                Mês {fmtBRL(monthTotal)}
+              </span>
+            </div>
+          )}
 
           {recentExpenses.length === 0 ? (
             <div style={{ textAlign: 'center', padding: '16px 0' }}>
@@ -317,13 +445,14 @@ export default async function PainelPage({ params }: Props) {
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {recentExpenses.map((exp, i) => {
-                const cat = EXPENSE_CATS[exp.category] ?? { emoji: '📦', label: exp.category }
+              {recentExpenses.slice(0, 5).map((exp, i) => {
+                const cat   = EXPENSE_CATS[exp.category] ?? { emoji: '📦', label: exp.category }
+                const total = Math.min(recentExpenses.length, 5)
                 return (
                   <div key={i} style={{
                     display: 'flex', alignItems: 'center', gap: 10,
-                    paddingBottom: i < recentExpenses.length - 1 ? 8 : 0,
-                    borderBottom: i < recentExpenses.length - 1 ? `0.5px solid ${C.border}` : 'none',
+                    paddingBottom: i < total - 1 ? 8 : 0,
+                    borderBottom: i < total - 1 ? `0.5px solid ${C.border}` : 'none',
                   }}>
                     <div style={{
                       width: 34, height: 34, borderRadius: 10, background: C.bgSecondary,

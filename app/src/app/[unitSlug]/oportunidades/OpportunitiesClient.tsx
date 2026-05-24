@@ -8,6 +8,13 @@ import { C } from '@/app/components/ui'
 // unit_id e lead_id são resolvidos server-side pelo cookie dna_lead_token
 // =============================================================================
 
+// Garante que a URL tenha protocolo — evita links relativos quando admin salva sem https://
+function safeUrl(url: string | null): string {
+  if (!url) return '#'
+  if (/^https?:\/\//i.test(url)) return url
+  return `https://${url}`
+}
+
 async function recordInteraction(
   unitSlug:        string,
   opp:             OppCard,
@@ -316,7 +323,7 @@ function OppCardComponent({
           {/* CTA principal */}
           {opp.cta_url ? (
             <a
-              href={opp.cta_url}
+              href={safeUrl(opp.cta_url)}
               target="_blank"
               rel="noopener noreferrer"
               onClick={() => recordInteraction(unitSlug, opp, 'click')}
