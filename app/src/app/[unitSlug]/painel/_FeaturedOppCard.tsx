@@ -85,17 +85,17 @@ export function FeaturedOppCard({
             target="_blank"
             rel="noopener noreferrer"
             onClick={() => {
-              // Registra clique mesmo sendo link externo
+              // Registra clique em link externo
               void fetch(`/api/${unitSlug}/opportunities/interactions`, {
                 method:  'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body:    JSON.stringify({
-                  opportunity_id:   oppId,
-                  opportunity_type: oppType,
+                  opportunity_id:    oppId,
+                  opportunity_type:  oppType,
                   opportunity_title: title,
-                  interaction_type: 'click',
-                  source: isFallback ? 'fallback' : 'painel',
-                  target_dream: targetDream,
+                  interaction_type:  'external_link_click',
+                  source:            isFallback ? 'fallback' : 'painel',
+                  target_dream:      targetDream,
                 }),
               }).catch(() => {})
             }}

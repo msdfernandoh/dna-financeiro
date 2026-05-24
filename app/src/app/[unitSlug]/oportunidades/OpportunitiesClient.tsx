@@ -18,7 +18,7 @@ function safeUrl(url: string | null): string {
 async function recordInteraction(
   unitSlug:        string,
   opp:             OppCard,
-  interactionType: 'interest' | 'save' | 'unsave' | 'click',
+  interactionType: 'interest' | 'save' | 'unsave' | 'click' | 'external_link_click' | 'contact_request',
   metadata:        Record<string, unknown> = {},
 ): Promise<void> {
   // Fallback: opportunity_id = null, source = 'fallback'
@@ -322,12 +322,12 @@ function OppCardComponent({
 
           {/* CTA principal */}
           {opp.cta_url ? (
-            /* Opp com link externo configurado → abre no target _blank */
+            /* Opp com link externo → registra external_link_click e abre em nova aba */
             <a
               href={safeUrl(opp.cta_url)}
               target="_blank"
               rel="noopener noreferrer"
-              onClick={() => recordInteraction(unitSlug, opp, 'click')}
+              onClick={() => recordInteraction(unitSlug, opp, 'external_link_click')}
               style={{
                 flex: 1, minWidth: 120,
                 display: 'flex', alignItems: 'center', justifyContent: 'center',

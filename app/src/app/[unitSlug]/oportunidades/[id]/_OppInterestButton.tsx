@@ -5,7 +5,9 @@ import { C } from '@/app/components/ui'
 
 // =============================================================================
 // Botão "Tenho interesse" para a página de detalhe da oportunidade
-// Registra interação via API — unit_id e lead_id resolvidos server-side
+// Registra interaction_type='interest', source='detalhe'
+// unit_id e lead_id resolvidos server-side (cookie dna_lead_token + banco)
+// Duplicate interest: servidor retorna 200 com {duplicate:true} — UX não muda
 // =============================================================================
 
 interface Props {

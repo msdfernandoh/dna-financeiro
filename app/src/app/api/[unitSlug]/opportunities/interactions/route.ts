@@ -15,8 +15,22 @@ import { NextRequest, NextResponse } from 'next/server'
 import { cookies }                   from 'next/headers'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 
-const VALID_INTERACTION_TYPES = ['view', 'click', 'interest', 'save', 'unsave'] as const
-const VALID_SOURCES            = ['painel', 'oportunidades', 'fallback'] as const
+const VALID_INTERACTION_TYPES = [
+  'view',
+  'click',
+  'interest',
+  'save',
+  'unsave',
+  'external_link_click',  // clique em CTA com URL externa
+  'contact_request',      // pedido de contato
+] as const
+
+const VALID_SOURCES = [
+  'painel',         // card de destaque em /[unitSlug]/painel
+  'oportunidades',  // lista em /[unitSlug]/oportunidades
+  'detalhe',        // página de detalhe /[unitSlug]/oportunidades/[id]
+  'fallback',       // oportunidade de fallback (sem opportunity_id)
+] as const
 
 type InteractionType = typeof VALID_INTERACTION_TYPES[number]
 type Source          = typeof VALID_SOURCES[number]
@@ -163,6 +177,12 @@ export async function POST(
     })
 
   if (error) {
+    // ── Violação de índice único parcial: lead já demonstrou interesse nessa opp ──
+    // idx_oi_unique_interest: UNIQUE (lead_id, opportunity_id) WHERE interaction_type='interest'
+    // Retorna 200 amigável em vez de 500 — o lead não precisa saber do detalhe técnico
+    if (error.code === '23505') {
+      return NextResponse.json({ ok: true, duplicate: true }, { status: 200 })
+    }
     console.error('[POST /api/[unitSlug]/opportunities/interactions]', error.message)
     return NextResponse.json({ error: 'Erro ao registrar interação.' }, { status: 500 })
   }
