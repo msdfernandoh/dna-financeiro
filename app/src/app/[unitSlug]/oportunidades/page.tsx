@@ -308,10 +308,8 @@ export default async function OportunidadesPage({ params }: Props) {
   // ── Fallback personalizado ───────────────────────────────────────────────
   const fallback = buildFallback(dream, hasDebt, wantsRenda)
 
-  // Combina: dados reais primeiro, fallback preenche o restante
-  const allOpps: OppCard[] = realOpps.length > 0
-    ? [...realOpps, ...fallback]
-    : fallback
+  // Oportunidades reais têm prioridade absoluta — fallback só aparece sem dados reais
+  const allOpps: OppCard[] = realOpps.length > 0 ? realOpps : fallback
 
   // ── Render ───────────────────────────────────────────────────────────────
   return (

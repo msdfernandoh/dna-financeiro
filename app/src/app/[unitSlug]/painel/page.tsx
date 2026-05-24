@@ -137,16 +137,18 @@ export default async function PainelPage({ params }: Props) {
   } catch { /* silently ignore */ }
 
   // 6. Oportunidade em destaque (falha silenciosa → usa fallback por sonho)
-  let featuredOppTitle:      string | null = null
-  let featuredOppId:         string | null = null
-  let featuredOppType:       string | null = null
-  let featuredOppDream:      string | null = null
+  let featuredOppTitle:  string | null = null
+  let featuredOppId:     string | null = null
+  let featuredOppType:   string | null = null
+  let featuredOppDream:  string | null = null
+  let featuredCtaUrl:    string | null = null
+  let featuredCtaLabel:  string | null = null
   try {
     const supabase3 = createServerSupabaseClient()
     const nowIso = new Date().toISOString()
     const { data: oppData } = await supabase3
       .from('opportunities')
-      .select('id, title, type, target_dream')   // ← agora inclui id, type, target_dream
+      .select('id, title, type, target_dream, cta_url, cta_label')
       .eq('unit_id', lead.unit_id)               // ← unit_id do banco, nunca do browser
       .eq('active', true)
       .eq('featured', true)
@@ -156,10 +158,12 @@ export default async function PainelPage({ params }: Props) {
       .order('position', { ascending: true })
       .limit(1)
       .single()
-    featuredOppTitle = oppData?.title       ?? null
-    featuredOppId    = oppData?.id          ?? null
-    featuredOppType  = oppData?.type        ?? null
-    featuredOppDream = oppData?.target_dream ?? null
+    featuredOppTitle  = oppData?.title        ?? null
+    featuredOppId     = oppData?.id           ?? null
+    featuredOppType   = oppData?.type         ?? null
+    featuredOppDream  = oppData?.target_dream ?? null
+    featuredCtaUrl    = oppData?.cta_url      ?? null
+    featuredCtaLabel  = oppData?.cta_label    ?? null
   } catch { /* usa fallback abaixo */ }
 
   // Fallback de oportunidade por sonho
@@ -182,6 +186,9 @@ export default async function PainelPage({ params }: Props) {
   // Saudação por hora do servidor
   const hour     = new Date().getHours()
   const greeting = hour < 12 ? 'Bom dia' : hour < 18 ? 'Boa tarde' : 'Boa noite'
+
+  // Saldo real do mês = renda - gastos reais lançados
+  const saldoReal = income - monthTotal
 
   // Análise de gastos x renda (para card "Despesas x Receita")
   const spendRatio  = income > 0 ? monthTotal / income : 0
@@ -309,64 +316,71 @@ export default async function PainelPage({ params }: Props) {
         </div>
 
         {/* ── Despesas x Receita ── */}
-        {income > 0 && (
-          <div style={{
-            background: '#fff', borderRadius: 16,
-            padding: '14px 16px', marginBottom: 10,
-            border: `0.5px solid ${C.border}`,
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-              <span style={{ fontSize: 13, fontWeight: 500, color: C.text }}>💰 Gastos x Receita</span>
+        <div style={{
+          background: '#fff', borderRadius: 16,
+          padding: '14px 16px', marginBottom: 10,
+          border: `0.5px solid ${C.border}`,
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+            <span style={{ fontSize: 13, fontWeight: 500, color: C.text }}>💰 Gastos x Receita</span>
+            {income > 0 && (
               <span style={{
                 background: spendMeta.bg, color: spendMeta.color,
                 fontSize: 10, fontWeight: 600, padding: '2px 9px', borderRadius: 99,
               }}>{spendMeta.label}</span>
-            </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 10 }}>
-              <div>
-                <p style={{ fontSize: 10, color: C.textSec, margin: '0 0 2px' }}>Renda aproximada</p>
-                <p style={{ fontSize: 14, fontWeight: 500, color: C.text, margin: 0 }}>{fmtBRL(income)}</p>
-              </div>
-              <div>
-                <p style={{ fontSize: 10, color: C.textSec, margin: '0 0 2px' }}>Gasto registrado no mês</p>
-                <p style={{ fontSize: 14, fontWeight: 500, color: monthTotal > 0 ? spendMeta.color : C.textSec, margin: 0 }}>
-                  {monthTotal > 0 ? fmtBRL(monthTotal) : 'Nenhum ainda'}
-                </p>
-              </div>
-              <div>
-                <p style={{ fontSize: 10, color: C.textSec, margin: '0 0 2px' }}>Despesas fixas (cadastro)</p>
-                <p style={{ fontSize: 14, fontWeight: 500, color: C.text, margin: 0 }}>{fmtBRL(expenses)}</p>
-              </div>
-              <div>
-                <p style={{ fontSize: 10, color: C.textSec, margin: '0 0 2px' }}>Sobra estimada</p>
-                <p style={{ fontSize: 14, fontWeight: 500, color: sobra >= 0 ? C.greenDark : C.coralDark, margin: 0 }}>
-                  {fmtBRL(sobra)}
-                </p>
-              </div>
-            </div>
-
-            {monthTotal > 0 && (
-              <>
-                <div style={{ background: 'rgba(0,0,0,0.06)', borderRadius: 99, height: 6, overflow: 'hidden', marginBottom: 4 }}>
-                  <div style={{
-                    background: spendMeta.bar, height: '100%', borderRadius: 99,
-                    width: `${spendPct}%`, transition: 'width 0.5s',
-                  }} />
-                </div>
-                <p style={{ fontSize: 10, color: C.textSec, margin: 0 }}>
-                  {spendPct}% da renda utilizado no mês · Hoje: {fmtBRL(todayTotal)} · Semana: {fmtBRL(weekTotal)}
-                </p>
-              </>
-            )}
-
-            {monthTotal === 0 && (
-              <p style={{ fontSize: 11, color: C.textTer, margin: 0 }}>
-                💡 Lance suas despesas para acompanhar seu controle financeiro em tempo real.
-              </p>
             )}
           </div>
-        )}
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 10 }}>
+            <div>
+              <p style={{ fontSize: 10, color: C.textSec, margin: '0 0 2px' }}>Renda aproximada</p>
+              <p style={{ fontSize: 14, fontWeight: 500, color: income > 0 ? C.text : C.textTer, margin: 0 }}>
+                {income > 0 ? fmtBRL(income) : 'Não informada'}
+              </p>
+            </div>
+            <div>
+              <p style={{ fontSize: 10, color: C.textSec, margin: '0 0 2px' }}>Gasto registrado no mês</p>
+              <p style={{ fontSize: 14, fontWeight: 500, color: monthTotal > 0 ? spendMeta.color : C.textSec, margin: 0 }}>
+                {monthTotal > 0 ? fmtBRL(monthTotal) : 'Nenhum ainda'}
+              </p>
+            </div>
+            <div>
+              <p style={{ fontSize: 10, color: C.textSec, margin: '0 0 2px' }}>Despesas fixas (cadastro)</p>
+              <p style={{ fontSize: 14, fontWeight: 500, color: C.text, margin: 0 }}>
+                {expenses > 0 ? fmtBRL(expenses) : '—'}
+              </p>
+            </div>
+            <div>
+              <p style={{ fontSize: 10, color: C.textSec, margin: '0 0 2px' }}>Saldo do mês (real)</p>
+              <p style={{ fontSize: 14, fontWeight: 500,
+                color: monthTotal === 0 ? C.textTer : saldoReal >= 0 ? C.greenDark : C.coralDark,
+                margin: 0,
+              }}>
+                {income === 0 && monthTotal === 0 ? '—' : fmtBRL(saldoReal)}
+              </p>
+            </div>
+          </div>
+
+          {income > 0 && monthTotal > 0 && (
+            <>
+              <div style={{ background: 'rgba(0,0,0,0.06)', borderRadius: 99, height: 6, overflow: 'hidden', marginBottom: 4 }}>
+                <div style={{
+                  background: spendMeta.bar, height: '100%', borderRadius: 99,
+                  width: `${spendPct}%`, transition: 'width 0.5s',
+                }} />
+              </div>
+              <p style={{ fontSize: 10, color: C.textSec, margin: 0 }}>
+                {spendPct}% da renda utilizado · Hoje: {fmtBRL(todayTotal)} · Semana: {fmtBRL(weekTotal)}
+              </p>
+            </>
+          )}
+
+          {monthTotal === 0 && (
+            <p style={{ fontSize: 11, color: C.textTer, margin: 0 }}>
+              💡 Lance suas despesas para acompanhar seu controle financeiro em tempo real.
+            </p>
+          )}
+        </div>
 
         {/* ── Sonho principal ── */}
         <div style={{
@@ -497,6 +511,8 @@ export default async function PainelPage({ params }: Props) {
           oppType={featuredOppType}
           targetDream={featuredOppDream}
           isFallback={isFeaturedFallback}
+          ctaUrl={featuredCtaUrl}
+          ctaLabel={featuredCtaLabel}
         />
 
         {/* ── Conquista desbloqueada ── */}

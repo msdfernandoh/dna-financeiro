@@ -322,6 +322,7 @@ function OppCardComponent({
 
           {/* CTA principal */}
           {opp.cta_url ? (
+            /* Opp com link externo configurado → abre no target _blank */
             <a
               href={safeUrl(opp.cta_url)}
               target="_blank"
@@ -335,9 +336,24 @@ function OppCardComponent({
                 fontSize: 12, fontWeight: 500, textDecoration: 'none',
               }}
             >
-              {opp.cta_label}
+              {opp.cta_label || 'Ver detalhes'} →
+            </a>
+          ) : opp.isReal ? (
+            /* Opp real sem link → abre página interna de detalhes */
+            <a
+              href={`/${unitSlug}/oportunidades/${opp.id}`}
+              style={{
+                flex: 1, minWidth: 120,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                background: C.purple, color: '#fff',
+                borderRadius: 10, padding: '9px 14px',
+                fontSize: 12, fontWeight: 500, textDecoration: 'none',
+              }}
+            >
+              {opp.cta_label || 'Ver detalhes'} →
             </a>
           ) : (
+            /* Fallback → botão "Tenho interesse" */
             <button
               type="button"
               onClick={onInterest}
@@ -351,7 +367,7 @@ function OppCardComponent({
                 fontFamily: 'inherit', transition: 'all .15s',
               }}
             >
-              {isInterested ? '✓ Tenho interesse' : opp.cta_label}
+              {isInterested ? '✓ Interesse registrado' : (opp.cta_label || 'Tenho interesse')}
             </button>
           )}
 
