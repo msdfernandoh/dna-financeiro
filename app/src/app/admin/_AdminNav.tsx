@@ -9,7 +9,7 @@ import { C } from '@/app/components/ui'
 
 const NAV_ITEMS = [
   { href: '/admin/oportunidades', label: 'Oportunidades', emoji: '🎯', available: true  },
-  { href: '/admin/leads',         label: 'Leads',         emoji: '👥', available: false },
+  { href: '/admin/leads',         label: 'Leads',         emoji: '👥', available: true  },
   { href: '/admin/perguntas',     label: 'Perguntas',     emoji: '❓', available: false },
 ] as const
 
