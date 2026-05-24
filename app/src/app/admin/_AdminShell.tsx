@@ -6,6 +6,7 @@ import type { ReactNode } from 'react'
 import { logoutAdmin }   from '@/app/admin/login/actions'
 import type { AdminSession } from '@/lib/supabase/admin'
 import { C } from '@/app/components/ui'
+import { AdminNav } from './_AdminNav'
 
 const ROLE_LABEL: Record<AdminSession['role'], string> = {
   master:      'Master',
@@ -30,71 +31,76 @@ export function AdminShell({ session, title, children, back }: Props) {
       {/* ── Header ── */}
       <header style={{
         background: '#fff', borderBottom: `0.5px solid ${C.border}`,
-        padding: '0 20px',
-        display: 'flex', alignItems: 'center', gap: 12, height: 56,
         position: 'sticky', top: 0, zIndex: 20,
       }}>
-        {/* Logo */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-          <div style={{
-            width: 30, height: 30, borderRadius: 8,
-            background: `linear-gradient(135deg, ${C.purple}, ${C.purpleDeep})`,
-            display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15,
-          }}>🧬</div>
-          <span style={{ fontSize: 13, fontWeight: 600, color: C.purple }}>Admin</span>
-        </div>
-
-        {/* Separador + título / breadcrumb */}
+        {/* ── Linha 1: Logo + título + usuário + logout ── */}
         <div style={{
-          width: 1, height: 20, background: C.border, flexShrink: 0, marginLeft: 4,
-        }} />
+          padding: '0 20px',
+          display: 'flex', alignItems: 'center', gap: 12, height: 52,
+        }}>
+          {/* Logo */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+            <div style={{
+              width: 28, height: 28, borderRadius: 8,
+              background: `linear-gradient(135deg, ${C.purple}, ${C.purpleDeep})`,
+              display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14,
+            }}>🧬</div>
+            <span style={{ fontSize: 12, fontWeight: 700, color: C.purple }}>DNA Admin</span>
+          </div>
 
-        {back ? (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1, minWidth: 0 }}>
-            <a
-              href={back.href}
-              style={{
+          {/* Separador + título / breadcrumb */}
+          <div style={{ width: 1, height: 18, background: C.border, flexShrink: 0 }} />
+
+          {back ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1, minWidth: 0 }}>
+              <a href={back.href} style={{
                 fontSize: 12, color: C.textSec, textDecoration: 'none',
-                display: 'flex', alignItems: 'center', gap: 4,
-                flexShrink: 0,
-              }}
-            >
-              ← {back.label}
-            </a>
-            <span style={{ color: C.textTer, fontSize: 12 }}>/</span>
-            <span style={{ fontSize: 13, fontWeight: 600, color: C.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0,
+              }}>
+                ← {back.label}
+              </a>
+              <span style={{ color: C.textTer, fontSize: 12 }}>/</span>
+              <span style={{ fontSize: 13, fontWeight: 600, color: C.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {title}
+              </span>
+            </div>
+          ) : (
+            <span style={{ fontSize: 13, fontWeight: 600, color: C.text, flex: 1, minWidth: 0 }}>
               {title}
             </span>
-          </div>
-        ) : (
-          <span style={{ fontSize: 14, fontWeight: 600, color: C.text, flex: 1, minWidth: 0 }}>
-            {title}
-          </span>
-        )}
+          )}
 
-        {/* Usuário + logout */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
-          <div style={{ textAlign: 'right' }}>
-            <div style={{ fontSize: 11, fontWeight: 600, color: C.text, lineHeight: 1.2 }}>
-              {session.name.split(' ')[0]}
+          {/* Usuário + logout */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+            <div style={{ textAlign: 'right' }}>
+              <div style={{ fontSize: 11, fontWeight: 600, color: C.text, lineHeight: 1.2 }}>
+                {session.name.split(' ')[0]}
+              </div>
+              <div style={{ fontSize: 10, color: C.textSec }}>
+                {ROLE_LABEL[session.role]}
+              </div>
             </div>
-            <div style={{ fontSize: 10, color: C.textSec }}>
-              {ROLE_LABEL[session.role]}
-            </div>
-          </div>
-          <form action={logoutAdmin}>
-            <button
-              type="submit"
-              style={{
+            <form action={logoutAdmin}>
+              <button type="submit" style={{
                 border: `1px solid ${C.border}`, borderRadius: 8,
-                padding: '5px 10px', fontSize: 11,
+                padding: '4px 10px', fontSize: 11,
                 cursor: 'pointer', background: '#fff', color: C.textSec,
                 fontFamily: 'inherit',
-              }}
-            >
-              Sair
-            </button>
-          </form>
+              }}>
+                Sair
+              </button>
+            </form>
+          </div>
+        </div>
+
+        {/* ── Linha 2: Navegação ── */}
+        <div style={{
+          borderTop: `0.5px solid ${C.border}`,
+          padding: '0 12px',
+          display: 'flex', alignItems: 'center', gap: 2,
+          overflowX: 'auto', scrollbarWidth: 'none', height: 38,
+        }}>
+          <AdminNav />
         </div>
       </header>
 
