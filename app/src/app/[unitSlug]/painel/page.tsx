@@ -1,9 +1,8 @@
-import type { CSSProperties } from 'react'
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { C } from '@/app/components/ui'
-import { DailyQuestion }     from './DailyQuestion'
+import { PerguntaDia }       from './PerguntaDia'
 import { FeaturedOppCard }   from './_FeaturedOppCard'
 import { LeadBottomNav }     from '@/app/components/LeadBottomNav'
 
@@ -201,20 +200,73 @@ export default async function PainelPage({ params }: Props) {
   const hour     = new Date().getHours()
   const greeting = hour < 12 ? 'Bom dia' : hour < 18 ? 'Boa tarde' : 'Boa noite'
 
-  // Saldo real do mês = renda - gastos reais lançados
-  const saldoReal = income - monthTotal
-
-  // Análise de gastos x renda (para card "Despesas x Receita")
+  // Análise de gastos x renda
   const spendRatio  = income > 0 ? monthTotal / income : 0
   const spendPct    = Math.min(Math.round(spendRatio * 100), 100)
   const spendStatus: 'controle' | 'atencao' | 'risco' =
     spendRatio < 0.8 ? 'controle' : spendRatio < 1 ? 'atencao' : 'risco'
-  const SPEND_STATUS: Record<typeof spendStatus, { label: string; color: string; bg: string; bar: string }> = {
-    controle: { label: 'Dentro do controle', color: C.greenDark,  bg: C.greenBg,  bar: C.green  },
-    atencao:  { label: 'Atenção',            color: C.amberDark,  bg: C.amberBg,  bar: C.amber  },
-    risco:    { label: 'Risco de estourar',  color: C.coralDark,  bg: C.coralBg,  bar: C.coral  },
+
+  // ── Meu Dia Financeiro — status do dia, dica, métricas ───────────────────────
+
+  type DayStatus = 'controle' | 'atencao' | 'alerta' | 'sem-renda'
+  const dayStatus: DayStatus =
+    income === 0                                          ? 'sem-renda'
+    : limiteDiario > 0 && todayTotal > limiteDiario * 2  ? 'alerta'
+    : limiteDiario > 0 && todayTotal > limiteDiario       ? 'atencao'
+    : 'controle'
+
+  const pctHoje       = limiteDiario > 0 ? Math.round((todayTotal / limiteDiario) * 100) : 0
+  const saldoEstimado = income - monthTotal - investedThisMonth
+
+  const DAY_STATUS_META = {
+    controle:    {
+      label: 'Dia sob controle ✅', icon: '✅', badge: 'Controle',
+      color: C.greenDark, bg: C.greenBg,
+      desc: todayTotal > 0
+        ? `Você gastou ${fmtBRL(todayTotal)} hoje — dentro do limite diário.`
+        : 'Nenhum gasto registrado hoje. Ótimo começo!',
+    },
+    atencao:     {
+      label: 'Atenção nos gastos ⚠️', icon: '⚠️', badge: 'Atenção',
+      color: C.amberDark, bg: C.amberBg,
+      desc: `Hoje: ${fmtBRL(todayTotal)} · Limite: ${fmtBRL(limiteDiario)}. Você está acima do limite diário.`,
+    },
+    alerta:      {
+      label: 'Alerta de gastos 🚨', icon: '🚨', badge: 'Alerta',
+      color: C.coralDark, bg: C.coralBg,
+      desc: `Hoje: ${fmtBRL(todayTotal)} — mais de 2× seu limite diário de ${fmtBRL(limiteDiario)}.`,
+    },
+    'sem-renda': {
+      label: 'Renda não informada 💡', icon: '💡', badge: 'Pendente',
+      color: C.purple, bg: C.purpleBg,
+      desc: 'Complete o DNA Financeiro para acompanhar seu status diário.',
+    },
+  } as const
+  const dayMeta = DAY_STATUS_META[dayStatus]
+
+  type TipType = 'investido' | 'gastos-altos' | 'comprometimento' | 'sem-lancamento' | 'controle'
+  const tipType: TipType =
+    investedThisMonth > 0 && dayStatus === 'controle' ? 'investido'
+    : dayStatus === 'alerta'  ? 'gastos-altos'
+    : spendRatio >= 0.8       ? 'comprometimento'
+    : monthTotal === 0        ? 'sem-lancamento'
+    : 'controle'
+
+  const TIP_META: Record<TipType, { emoji: string; text: string; color: string; bg: string }> = {
+    investido:        { emoji: '💚', color: C.greenDark, bg: C.greenBg,
+                        text: `Você está investindo e controlando! ${fmtBRL(investedThisMonth)} guardados este mês. Continue assim!` },
+    'gastos-altos':   { emoji: '🚨', color: C.coralDark, bg: C.coralBg,
+                        text: 'Seus gastos de hoje estão altos. Revise as despesas e evite compras não planejadas.' },
+    comprometimento:  { emoji: '⚠️', color: C.amberDark, bg: C.amberBg,
+                        text: `${spendPct}% da sua renda já foi comprometida. Cuidado para não extrapolar o orçamento.` },
+    'sem-lancamento': { emoji: '📝', color: C.purple,    bg: C.purpleBg,
+                        text: 'Lance sua primeira despesa do mês para acompanhar seu controle financeiro em tempo real.' },
+    controle:         { emoji: '🎯', color: C.greenDark, bg: C.greenBg,
+                        text: 'Você está no caminho certo! Mantenha o controle e registre todos os seus gastos.' },
   }
-  const spendMeta = SPEND_STATUS[spendStatus]
+  const tipMeta = TIP_META[tipType]
+
+  const todayLabel = new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'short' })
 
   return (
     <div style={{ fontFamily: "'DM Sans', system-ui, sans-serif", background: C.bgApp, minHeight: '100dvh' }}>
@@ -323,88 +375,108 @@ export default async function PainelPage({ params }: Props) {
           </div>
         )}
 
-        {/* ── Resumo financeiro — 4 cards ── */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 10 }}>
-          <FinCard label="Renda aproximada" value={fmtBRL(income)} />
-          <FinCard label="Despesas" value={fmtBRL(expenses)} valueColor={expenses > income ? C.coral : C.text} />
-          <FinCard
-            label="Sobra mensal"
-            value={fmtBRL(sobra)}
-            valueColor={sobra >= 0 ? C.green : C.coral}
-            bg={sobra >= 0 ? C.greenBg : C.coralBg}
-          />
-          <FinCard
-            label="Limite por dia"
-            value={limiteDiario > 0 ? fmtBRL(limiteDiario) : '—'}
-            valueColor={C.purple}
-          />
-        </div>
+        {/* ── Meu Dia Financeiro ── */}
+        <div style={{ marginBottom: 10 }}>
 
-        {/* ── Despesas x Receita ── */}
-        <div style={{
-          background: '#fff', borderRadius: 16,
-          padding: '14px 16px', marginBottom: 10,
-          border: `0.5px solid ${C.border}`,
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-            <span style={{ fontSize: 13, fontWeight: 500, color: C.text }}>💰 Gastos x Receita</span>
-            {income > 0 && (
-              <span style={{
-                background: spendMeta.bg, color: spendMeta.color,
-                fontSize: 10, fontWeight: 600, padding: '2px 9px', borderRadius: 99,
-              }}>{spendMeta.label}</span>
-            )}
+          {/* Cabeçalho da seção */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ fontSize: 15 }}>📅</span>
+              <span style={{ fontSize: 14, fontWeight: 600, color: C.text }}>Meu Dia Financeiro</span>
+            </div>
+            <span style={{ fontSize: 10, color: C.textSec, textTransform: 'capitalize' }}>{todayLabel}</span>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 10 }}>
-            <div>
-              <p style={{ fontSize: 10, color: C.textSec, margin: '0 0 2px' }}>Renda aproximada</p>
-              <p style={{ fontSize: 14, fontWeight: 500, color: income > 0 ? C.text : C.textTer, margin: 0 }}>
-                {income > 0 ? fmtBRL(income) : 'Não informada'}
-              </p>
-            </div>
-            <div>
-              <p style={{ fontSize: 10, color: C.textSec, margin: '0 0 2px' }}>Gasto registrado no mês</p>
-              <p style={{ fontSize: 14, fontWeight: 500, color: monthTotal > 0 ? spendMeta.color : C.textSec, margin: 0 }}>
-                {monthTotal > 0 ? fmtBRL(monthTotal) : 'Nenhum ainda'}
-              </p>
-            </div>
-            <div>
-              <p style={{ fontSize: 10, color: C.textSec, margin: '0 0 2px' }}>Despesas fixas (cadastro)</p>
-              <p style={{ fontSize: 14, fontWeight: 500, color: C.text, margin: 0 }}>
-                {expenses > 0 ? fmtBRL(expenses) : '—'}
-              </p>
-            </div>
-            <div>
-              <p style={{ fontSize: 10, color: C.textSec, margin: '0 0 2px' }}>Saldo do mês (real)</p>
-              <p style={{ fontSize: 14, fontWeight: 500,
-                color: monthTotal === 0 ? C.textTer : saldoReal >= 0 ? C.greenDark : C.coralDark,
-                margin: 0,
-              }}>
-                {income === 0 && monthTotal === 0 ? '—' : fmtBRL(saldoReal)}
-              </p>
-            </div>
-          </div>
-
-          {income > 0 && monthTotal > 0 && (
-            <>
-              <div style={{ background: 'rgba(0,0,0,0.06)', borderRadius: 99, height: 6, overflow: 'hidden', marginBottom: 4 }}>
-                <div style={{
-                  background: spendMeta.bar, height: '100%', borderRadius: 99,
-                  width: `${spendPct}%`, transition: 'width 0.5s',
-                }} />
+          {/* Status do dia — card full-width */}
+          <div style={{
+            background: dayMeta.bg, borderRadius: 16,
+            padding: '14px 16px', marginBottom: 8,
+            border: `0.5px solid ${dayMeta.color}30`,
+          }}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+              <div style={{
+                width: 40, height: 40, borderRadius: 12, background: '#fff', flexShrink: 0,
+                display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20,
+                boxShadow: `0 2px 8px ${dayMeta.color}20`,
+              }}>{dayMeta.icon}</div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3 }}>
+                  <p style={{ fontSize: 13, fontWeight: 700, color: dayMeta.color, margin: 0 }}>{dayMeta.label}</p>
+                  <span style={{
+                    background: dayMeta.color, color: '#fff',
+                    fontSize: 9, fontWeight: 700, padding: '2px 7px', borderRadius: 99,
+                  }}>{dayMeta.badge}</span>
+                </div>
+                <p style={{ fontSize: 11, color: dayMeta.color, margin: 0, lineHeight: 1.5 }}>{dayMeta.desc}</p>
+                {pctHoje > 0 && (
+                  <div style={{ marginTop: 8 }}>
+                    <div style={{ background: 'rgba(0,0,0,0.08)', borderRadius: 99, height: 4, overflow: 'hidden', marginBottom: 3 }}>
+                      <div style={{
+                        background: dayMeta.color, height: '100%', borderRadius: 99,
+                        width: `${Math.min(pctHoje, 100)}%`, transition: 'width .4s',
+                      }} />
+                    </div>
+                    <p style={{ fontSize: 9, color: dayMeta.color, margin: 0 }}>{pctHoje}% do limite diário utilizado</p>
+                  </div>
+                )}
               </div>
-              <p style={{ fontSize: 10, color: C.textSec, margin: 0 }}>
-                {spendPct}% da renda utilizado · Hoje: {fmtBRL(todayTotal)} · Semana: {fmtBRL(weekTotal)}
-              </p>
-            </>
-          )}
+            </div>
+          </div>
 
-          {monthTotal === 0 && (
-            <p style={{ fontSize: 11, color: C.textTer, margin: 0 }}>
-              💡 Lance suas despesas para acompanhar seu controle financeiro em tempo real.
-            </p>
-          )}
+          {/* 6 métricas — grid 3 colunas */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6, marginBottom: 8 }}>
+            <MetricChip
+              label="Hoje"
+              value={todayTotal > 0 ? fmtBRL(todayTotal) : '—'}
+              color={limiteDiario > 0 && todayTotal > limiteDiario ? C.coralDark : C.text}
+            />
+            <MetricChip
+              label="Semana"
+              value={weekTotal > 0 ? fmtBRL(weekTotal) : '—'}
+            />
+            <MetricChip
+              label="Mês"
+              value={monthTotal > 0 ? fmtBRL(monthTotal) : '—'}
+              color={spendStatus === 'risco' ? C.coralDark : C.text}
+            />
+            <MetricChip
+              label="Investido"
+              value={investedThisMonth > 0 ? fmtBRL(investedThisMonth) : '—'}
+              color={investedThisMonth > 0 ? C.greenDark : C.textTer}
+              bg={investedThisMonth > 0 ? C.greenBg : '#fff'}
+            />
+            <MetricChip
+              label="Saldo est."
+              value={income > 0 ? fmtBRL(saldoEstimado) : '—'}
+              color={income > 0 ? (saldoEstimado >= 0 ? C.greenDark : C.coralDark) : C.textTer}
+            />
+            <MetricChip
+              label="Limite/dia"
+              value={limiteDiario > 0 ? fmtBRL(limiteDiario) : '—'}
+              color={limiteDiario > 0 ? C.purple : C.textTer}
+            />
+          </div>
+
+          {/* Dica do dia */}
+          <div style={{
+            background: tipMeta.bg, borderRadius: 14,
+            padding: '12px 14px', marginBottom: 8,
+            display: 'flex', gap: 10, alignItems: 'flex-start',
+          }}>
+            <span style={{ fontSize: 18, flexShrink: 0 }}>{tipMeta.emoji}</span>
+            <p style={{ fontSize: 12, color: tipMeta.color, margin: 0, lineHeight: 1.5 }}>{tipMeta.text}</p>
+          </div>
+
+          {/* Pergunta inteligente do dia */}
+          <PerguntaDia unitSlug={unitSlug} />
+
+          {/* Ações rápidas — 2×2 */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 7, marginTop: 4 }}>
+            <ActionBtn href={`/${unitSlug}/despesas/nova`} emoji="💸" label="Lançar despesa"    bg={C.coralBg}  color={C.coralDark}  />
+            <ActionBtn href={`/${unitSlug}/investimentos`} emoji="💚" label="Registrar invest." bg={C.greenBg}  color={C.greenDark}  />
+            <ActionBtn href={`/${unitSlug}/oportunidades`} emoji="🎯" label="Ver oportunidades" bg={C.amberBg}  color={C.amberDark}  />
+            <ActionBtn href={`/${unitSlug}/relatorio`}     emoji="📋" label="Ver relatório"     bg={C.purpleBg} color={C.purpleDeep} />
+          </div>
         </div>
 
         {/* ── Estou me pagando ── */}
@@ -557,19 +629,6 @@ export default async function PainelPage({ params }: Props) {
           )}
         </div>
 
-        {/* ── Pergunta do dia (Client Component) ── */}
-        <DailyQuestion unitSlug={unitSlug} />
-
-        {/* ── CTA: Lançar despesa ── */}
-        <a href={`/${unitSlug}/despesas/nova`} style={{
-          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-          background: C.purple, color: '#fff', borderRadius: 14, padding: '16px 20px',
-          textDecoration: 'none', fontSize: 15, fontWeight: 500, marginBottom: 10,
-          boxShadow: `0 4px 20px ${C.purple}40`,
-        }}>
-          + Lançar despesa rápida
-        </a>
-
         {/* ── Oportunidade da semana ── */}
         <FeaturedOppCard
           unitSlug={unitSlug}
@@ -616,16 +675,38 @@ export default async function PainelPage({ params }: Props) {
 
 // ── Sub-componentes ────────────────────────────────────────────────────────────
 
-function FinCard({ label, value, valueColor = C.text, bg = '#fff' }: {
-  label: string; value: string; valueColor?: string; bg?: string
+function MetricChip({ label, value, color = C.text, bg = '#fff' }: {
+  label: string; value: string; color?: string; bg?: string
 }) {
   return (
     <div style={{
-      background: bg, borderRadius: 14,
-      padding: '12px 14px', border: `0.5px solid ${C.border}`,
+      background: bg, borderRadius: 12,
+      padding: '10px 8px', border: `0.5px solid ${C.border}`,
+      textAlign: 'center',
     }}>
-      <p style={{ fontSize: 11, color: C.textSec, fontWeight: 500, margin: '0 0 4px' }}>{label}</p>
-      <p style={{ fontSize: 16, fontWeight: 500, color: valueColor, margin: 0 }}>{value}</p>
+      <p style={{
+        fontSize: 9, color: C.textSec, fontWeight: 500, margin: '0 0 3px',
+        textTransform: 'uppercase', letterSpacing: '0.4px',
+      }}>{label}</p>
+      <p style={{
+        fontSize: 13, fontWeight: 600, color, margin: 0,
+        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+      }}>{value}</p>
     </div>
+  )
+}
+
+function ActionBtn({ href, emoji, label, bg, color }: {
+  href: string; emoji: string; label: string; bg: string; color: string
+}) {
+  return (
+    <a href={href} style={{
+      display: 'flex', alignItems: 'center', gap: 8,
+      background: bg, borderRadius: 13, padding: '12px 14px',
+      textDecoration: 'none', border: `0.5px solid ${color}20`,
+    }}>
+      <span style={{ fontSize: 18, flexShrink: 0 }}>{emoji}</span>
+      <span style={{ fontSize: 12, fontWeight: 600, color, lineHeight: 1.2 }}>{label}</span>
+    </a>
   )
 }
