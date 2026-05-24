@@ -131,6 +131,14 @@ export type CreateExpenseResult =
   | { success: false; error: string; field?: string }
 
 // ---------------------------------------------------------------------------
+// Resposta da Server Action de criação de investimento
+// ---------------------------------------------------------------------------
+
+export type CreateInvestmentResult =
+  | { success: true }
+  | { success: false; error: string; field?: string }
+
+// ---------------------------------------------------------------------------
 // Resposta da Server Action de DNA Financeiro
 // ---------------------------------------------------------------------------
 

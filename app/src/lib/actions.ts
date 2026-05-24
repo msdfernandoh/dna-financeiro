@@ -24,7 +24,7 @@
 import { cookies, headers } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
-import type { LeadCreateInput, CreateLeadResult, CreateExpenseResult, SaveDnaResult, FormErrors } from '@/types/database'
+import type { LeadCreateInput, CreateLeadResult, CreateExpenseResult, CreateInvestmentResult, SaveDnaResult, FormErrors } from '@/types/database'
 
 // ---------------------------------------------------------------------------
 // Validação dos campos do formulário
@@ -368,6 +368,122 @@ export async function createExpense(
   }
 
   redirect(`/${unitSlug}/despesas/sucesso`)
+}
+
+// ---------------------------------------------------------------------------
+// Server Action: Registrar investimento
+//
+// SEGURANÇA:
+//   • unitSlug vinculado pelo Server Component — nunca do browser
+//   • lead_id e unit_id resolvidos do cookie + banco — nunca do FormData
+//   • investments NUNCA somam com expenses (universos separados)
+//   • service_role usada apenas aqui no servidor
+// ---------------------------------------------------------------------------
+
+const VALID_INVESTMENT_TYPES = [
+  'poupanca', 'reserva_emergencia', 'renda_fixa', 'acoes', 'fundos_imobiliarios',
+  'cripto', 'imovel', 'consorcio', 'veiculo', 'previdencia', 'negocio', 'curso',
+  'equipamento', 'outro',
+] as const
+
+export async function createInvestment(
+  unitSlug: string,
+  _prevState: CreateInvestmentResult | null,
+  formData: FormData,
+): Promise<CreateInvestmentResult> {
+  // 1. Cookie → leadId
+  const cookieStore = await cookies()
+  const token = cookieStore.get('dna_lead_token')?.value
+  if (!token) return { success: false, error: 'Sessão não encontrada. Faça o cadastro novamente.' }
+
+  let leadId: string
+  try {
+    const decoded = Buffer.from(token, 'base64url').toString('utf-8')
+    leadId = decoded.split(':')[0]
+    if (!leadId || !/^[0-9a-f-]{36}$/.test(leadId)) throw new Error('invalid')
+  } catch {
+    return { success: false, error: 'Sessão inválida.' }
+  }
+
+  // 2. Validar campos
+  const amountRaw = formData.get('amount')?.toString() ?? ''
+  const amount = parseFloat(amountRaw.replace(/\./g, '').replace(',', '.'))
+  if (isNaN(amount) || amount <= 0) {
+    return { success: false, error: 'Informe um valor maior que zero.', field: 'amount' }
+  }
+  if (amount > 9_999_999.99) {
+    return { success: false, error: 'Valor muito alto. Verifique o que foi digitado.', field: 'amount' }
+  }
+
+  const investmentType = formData.get('investment_type')?.toString().trim() ?? ''
+  if (!VALID_INVESTMENT_TYPES.includes(investmentType as typeof VALID_INVESTMENT_TYPES[number])) {
+    return { success: false, error: 'Selecione um tipo de investimento.', field: 'investment_type' }
+  }
+
+  const description = formData.get('description')?.toString().trim() || null
+
+  const investmentDateRaw = formData.get('investment_date')?.toString() ?? ''
+  const investmentDate = /^\d{4}-\d{2}-\d{2}$/.test(investmentDateRaw)
+    ? investmentDateRaw
+    : new Date().toISOString().split('T')[0]
+
+  const isRecurring = formData.get('is_recurring') === 'true'
+
+  const currentValueRaw = formData.get('current_value')?.toString().trim() ?? ''
+  let currentValue: number | null = null
+  if (currentValueRaw) {
+    currentValue = parseFloat(currentValueRaw.replace(/\./g, '').replace(',', '.'))
+    if (isNaN(currentValue) || currentValue < 0) {
+      return { success: false, error: 'Valor atual inválido.', field: 'current_value' }
+    }
+  }
+
+  const expectedReturnRaw = formData.get('expected_return')?.toString().trim() ?? ''
+  let expectedReturn: number | null = null
+  if (expectedReturnRaw) {
+    expectedReturn = parseFloat(expectedReturnRaw.replace(',', '.'))
+    if (isNaN(expectedReturn) || expectedReturn < -100 || expectedReturn > 1000) {
+      return { success: false, error: 'Retorno esperado deve estar entre -100% e 1000%.', field: 'expected_return' }
+    }
+  }
+
+  // 3. Resolver lead + unit_id do banco (valida unit_slug → sem cross-unit)
+  const supabase = createServerSupabaseClient()
+  const { data: lead, error: leadError } = await supabase
+    .from('leads')
+    .select('id, unit_id')
+    .eq('id', leadId)
+    .eq('unit_slug', unitSlug)
+    .is('deleted_at', null)
+    .single()
+
+  if (leadError || !lead) {
+    return { success: false, error: 'Sessão inválida ou expirada. Tente novamente.' }
+  }
+
+  // 4. Inserir investimento — unit_id e lead_id vêm do servidor, nunca do browser
+  const insertData: Record<string, unknown> = {
+    unit_id:         lead.unit_id,   // ← resolvido do banco, nunca do client
+    lead_id:         lead.id,        // ← resolvido do cookie
+    investment_type: investmentType,
+    amount,
+    description,
+    investment_date: investmentDate,
+    is_recurring:    isRecurring,
+  }
+  if (currentValue !== null) insertData.current_value = currentValue
+  if (expectedReturn !== null) insertData.expected_return = expectedReturn
+
+  const { error: insertError } = await supabase
+    .from('investments')
+    .insert(insertData)
+
+  if (insertError) {
+    console.error('[createInvestment]', insertError.message)
+    return { success: false, error: 'Erro ao salvar o investimento. Tente novamente em instantes.' }
+  }
+
+  redirect(`/${unitSlug}/investimentos?novo=1`)
 }
 
 // ---------------------------------------------------------------------------

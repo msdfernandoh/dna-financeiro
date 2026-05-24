@@ -136,7 +136,20 @@ export default async function PainelPage({ params }: Props) {
     monthTotal = recentExpenses.reduce((s, e) => s + e.amount, 0)
   } catch { /* silently ignore */ }
 
-  // 6. Oportunidade em destaque (falha silenciosa → usa fallback por sonho)
+  // 6. Investimentos do mês — universo separado, NUNCA soma com expenses
+  let investedThisMonth = 0
+  try {
+    const supabase4 = createServerSupabaseClient()
+    const { data: invData } = await supabase4
+      .from('investments')
+      .select('amount')
+      .eq('lead_id', leadId)
+      .is('deleted_at', null)
+      .gte('investment_date', firstOfMonth)
+    investedThisMonth = (invData ?? []).reduce((s: number, i: { amount: number }) => s + i.amount, 0)
+  } catch { /* silently ignore */ }
+
+  // 7. Oportunidade em destaque (falha silenciosa → usa fallback por sonho)
   let featuredOppTitle:  string | null = null
   let featuredOppId:     string | null = null
   let featuredOppType:   string | null = null
@@ -380,6 +393,48 @@ export default async function PainelPage({ params }: Props) {
               💡 Lance suas despesas para acompanhar seu controle financeiro em tempo real.
             </p>
           )}
+        </div>
+
+        {/* ── Estou me pagando ── */}
+        <div style={{
+          background: investedThisMonth > 0
+            ? `linear-gradient(135deg, ${C.greenBg} 0%, #e8faf0 100%)`
+            : '#fff',
+          borderRadius: 16, padding: '14px 16px', marginBottom: 10,
+          border: `0.5px solid ${investedThisMonth > 0 ? `${C.greenDark}20` : C.border}`,
+          display: 'flex', alignItems: 'center', gap: 12,
+        }}>
+          <div style={{
+            width: 42, height: 42, borderRadius: 12, flexShrink: 0,
+            background: investedThisMonth > 0 ? '#fff' : C.greenBg,
+            display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20,
+            boxShadow: investedThisMonth > 0 ? `0 2px 8px ${C.greenDark}15` : 'none',
+          }}>💚</div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <p style={{ margin: '0 0 2px', fontSize: 12, fontWeight: 600,
+              color: investedThisMonth > 0 ? C.greenDark : C.text,
+            }}>
+              {investedThisMonth > 0
+                ? `Você se pagou ${fmtBRL(investedThisMonth)} este mês!`
+                : 'Estou me pagando'}
+            </p>
+            <p style={{ margin: 0, fontSize: 11, lineHeight: 1.4,
+              color: investedThisMonth > 0 ? C.greenDark : C.textSec,
+            }}>
+              {investedThisMonth > 0
+                ? `${income > 0 ? `${Math.round((investedThisMonth / income) * 100)}% da renda · ` : ''}Patrimônio crescendo.`
+                : 'Separe algo para você antes de pagar as contas.'}
+            </p>
+          </div>
+          <a href={`/${unitSlug}/investimentos`} style={{
+            flexShrink: 0, textDecoration: 'none',
+            background: investedThisMonth > 0 ? C.green : C.greenBg,
+            color: investedThisMonth > 0 ? '#fff' : C.greenDark,
+            borderRadius: 10, padding: '7px 13px',
+            fontSize: 11, fontWeight: 600, whiteSpace: 'nowrap',
+          }}>
+            {investedThisMonth > 0 ? 'Ver →' : 'Registrar →'}
+          </a>
         </div>
 
         {/* ── Sonho principal ── */}

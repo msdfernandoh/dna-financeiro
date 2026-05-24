@@ -402,6 +402,31 @@ export default async function RelatorioPage({ params }: Props) {
     .sort((a, b) => b[1] - a[1])
     .slice(0, 3)
 
+  // ── 5b. Investimentos (universo separado — NUNCA soma com despesas) ──────
+  let investData: { amount: number; investment_type: string; investment_date: string }[] = []
+  try {
+    const { data: invRaw } = await supabase
+      .from('investments')
+      .select('amount, investment_type, investment_date')
+      .eq('lead_id', leadId)
+      .is('deleted_at', null)
+      .order('investment_date', { ascending: false })
+      .limit(100)
+    investData = invRaw ?? []
+  } catch { /* silently ignore */ }
+
+  const totalInvested      = investData.reduce((s, i) => s + i.amount, 0)
+  const investedThisMonth  = investData
+    .filter(i => i.investment_date >= firstOfMonth)
+    .reduce((s, i) => s + i.amount, 0)
+
+  // Tipo mais frequente por valor
+  const invTypeTotals: Record<string, number> = {}
+  for (const i of investData) {
+    invTypeTotals[i.investment_type] = (invTypeTotals[i.investment_type] ?? 0) + i.amount
+  }
+  const topInvTypeKey = Object.entries(invTypeTotals).sort((a, b) => b[1] - a[1])[0]?.[0] ?? null
+
   // ── 6. Cálculos ───────────────────────────────────────────────────────────
   const income      = lead.monthly_income   ?? 0
   const expenses    = lead.monthly_expenses ?? 0
@@ -776,6 +801,127 @@ export default async function RelatorioPage({ params }: Props) {
               fontSize: 12, fontWeight: 500, textDecoration: 'none',
             }}>
               Lançar despesa →
+            </a>
+          </div>
+        )}
+
+        {/* ══════════════════════════════════════════════════════════════════════
+            SEÇÃO 6b — PATRIMÔNIO E INVESTIMENTOS
+            Nota: investments NUNCA somam com expenses — universos separados
+        ═══════════════════════════════════════════════════════════════════════ */}
+        <SectionTitle emoji="💚" title="Patrimônio e Investimentos" />
+        {totalInvested > 0 ? (
+          <div style={{ marginBottom: 12 }}>
+            {/* Grid de números */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
+              <FinTile
+                label="Total registrado"
+                value={fmtBRL(totalInvested)}
+                valueColor={C.greenDark}
+                bg={C.greenBg}
+              />
+              <FinTile
+                label="Investido este mês"
+                value={investedThisMonth > 0 ? fmtBRL(investedThisMonth) : '—'}
+                valueColor={investedThisMonth > 0 ? C.greenDark : C.textTer}
+              />
+            </div>
+
+            {/* Detalhe top tipo + % da renda */}
+            {topInvTypeKey && (() => {
+              const INV_LABELS: Record<string, { emoji: string; label: string }> = {
+                poupanca:            { emoji: '🐷', label: 'Poupança' },
+                reserva_emergencia:  { emoji: '🆘', label: 'Reserva de Emergência' },
+                renda_fixa:          { emoji: '📊', label: 'Renda Fixa' },
+                acoes:               { emoji: '📈', label: 'Ações' },
+                fundos_imobiliarios: { emoji: '🏢', label: 'Fundos Imobiliários' },
+                cripto:              { emoji: '₿',  label: 'Criptomoedas' },
+                imovel:              { emoji: '🏠', label: 'Imóvel' },
+                consorcio:           { emoji: '🤝', label: 'Consórcio' },
+                veiculo:             { emoji: '🚗', label: 'Veículo' },
+                previdencia:         { emoji: '🏦', label: 'Previdência' },
+                negocio:             { emoji: '🏪', label: 'Negócio' },
+                curso:               { emoji: '📚', label: 'Educação' },
+                equipamento:         { emoji: '🔧', label: 'Equipamento' },
+                outro:               { emoji: '💰', label: 'Outro' },
+              }
+              const topInfo = INV_LABELS[topInvTypeKey] ?? { emoji: '💰', label: topInvTypeKey }
+              const invPct  = income > 0 && investedThisMonth > 0
+                ? Math.round((investedThisMonth / income) * 100) : 0
+
+              return (
+                <div style={{
+                  background: C.greenBg, borderRadius: 14,
+                  padding: '14px', marginBottom: 8,
+                  display: 'flex', alignItems: 'center', gap: 12,
+                  border: `0.5px solid ${C.greenDark}20`,
+                }}>
+                  <div style={{
+                    width: 44, height: 44, borderRadius: 13, background: '#fff',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: 22, flexShrink: 0,
+                  }}>
+                    {topInfo.emoji}
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <p style={{ margin: '0 0 2px', fontSize: 11, color: C.greenDark, fontWeight: 600 }}>
+                      Principal investimento
+                    </p>
+                    <p style={{ margin: '0 0 2px', fontSize: 14, fontWeight: 700, color: C.greenDark }}>
+                      {topInfo.label}
+                    </p>
+                    {invPct > 0 && (
+                      <p style={{ margin: 0, fontSize: 11, color: C.greenDark }}>
+                        Você investiu {invPct}% da sua renda este mês 🎯
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )
+            })()}
+
+            {/* Mensagem positiva */}
+            <div style={{
+              background: '#fff', borderRadius: 14,
+              padding: '12px 14px', border: `0.5px solid ${C.border}`,
+            }}>
+              <p style={{ margin: '0 0 4px', fontSize: 12, fontWeight: 700, color: C.greenDark }}>
+                🏆 Você está se pagando!
+              </p>
+              <p style={{ margin: '0 0 10px', fontSize: 12, color: C.textSec, lineHeight: 1.5 }}>
+                Quem investe em si mesmo constrói patrimônio enquanto cuida das despesas do dia a dia.
+                Aportes regulares, mesmo que pequenos, geram resultados expressivos ao longo do tempo.
+              </p>
+              <a href={`/${unitSlug}/investimentos`} style={{
+                display: 'inline-block',
+                background: C.greenBg, color: C.greenDark,
+                borderRadius: 10, padding: '7px 14px',
+                fontSize: 12, fontWeight: 600, textDecoration: 'none',
+              }}>
+                Ver meus investimentos →
+              </a>
+            </div>
+          </div>
+        ) : (
+          <div style={{
+            background: '#fff', borderRadius: 14, padding: '18px', marginBottom: 12,
+            border: `0.5px solid ${C.border}`, textAlign: 'center',
+          }}>
+            <p style={{ margin: '0 0 6px', fontSize: 20 }}>💚</p>
+            <p style={{ margin: '0 0 4px', fontSize: 13, fontWeight: 500, color: C.text }}>
+              Você ainda não registrou investimentos
+            </p>
+            <p style={{ margin: '0 0 12px', fontSize: 12, color: C.textSec, lineHeight: 1.5 }}>
+              Pagar a si mesmo é o primeiro passo para construir patrimônio.
+              Comece com qualquer valor — o hábito vale mais que o montante.
+            </p>
+            <a href={`/${unitSlug}/investimentos`} style={{
+              display: 'inline-block',
+              background: C.green, color: '#fff',
+              borderRadius: 10, padding: '8px 18px',
+              fontSize: 12, fontWeight: 600, textDecoration: 'none',
+            }}>
+              Registrar meu primeiro investimento →
             </a>
           </div>
         )}
