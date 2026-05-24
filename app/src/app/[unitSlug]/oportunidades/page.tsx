@@ -14,6 +14,7 @@ import { redirect } from 'next/navigation'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { C } from '@/app/components/ui'
 import { OpportunitiesClient } from './OpportunitiesClient'
+import { LeadBottomNav } from '@/app/components/LeadBottomNav'
 import type { OppCard } from './OpportunitiesClient'
 
 interface Props {
@@ -332,7 +333,7 @@ export default async function OportunidadesPage({ params }: Props) {
         </div>
       </header>
 
-      <main style={{ maxWidth: 480, margin: '0 auto', padding: '16px 16px 60px' }}>
+      <main style={{ maxWidth: 480, margin: '0 auto', padding: '16px 16px 80px' }}>
 
         {/* ── Card de personalização ── */}
         <div style={{
@@ -390,6 +391,8 @@ export default async function OportunidadesPage({ params }: Props) {
         />
 
       </main>
+
+      <LeadBottomNav unitSlug={unitSlug} />
     </div>
   )
 }

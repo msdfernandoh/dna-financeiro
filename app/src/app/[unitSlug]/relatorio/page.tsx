@@ -13,6 +13,7 @@ import { cookies }  from 'next/headers'
 import { redirect } from 'next/navigation'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { C } from '@/app/components/ui'
+import { LeadBottomNav } from '@/app/components/LeadBottomNav'
 
 interface Props {
   params: Promise<{ unitSlug: string }>
@@ -478,7 +479,7 @@ export default async function RelatorioPage({ params }: Props) {
         }}>← Painel</a>
       </header>
 
-      <main style={{ maxWidth: 480, margin: '0 auto', padding: '16px 16px 60px' }}>
+      <main style={{ maxWidth: 480, margin: '0 auto', padding: '16px 16px 80px' }}>
 
         {/* ── CAPA ── */}
         <div style={{
@@ -1142,6 +1143,8 @@ export default async function RelatorioPage({ params }: Props) {
         </p>
 
       </main>
+
+      <LeadBottomNav unitSlug={unitSlug} />
     </div>
   )
 }

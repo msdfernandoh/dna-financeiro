@@ -5,6 +5,7 @@ import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { C } from '@/app/components/ui'
 import { DailyQuestion }     from './DailyQuestion'
 import { FeaturedOppCard }   from './_FeaturedOppCard'
+import { LeadBottomNav }     from '@/app/components/LeadBottomNav'
 
 // ── Categorias de despesa ─────────────────────────────────────────────────────
 
@@ -242,7 +243,7 @@ export default async function PainelPage({ params }: Props) {
         </div>
       </header>
 
-      <main style={{ maxWidth: 480, margin: '0 auto', padding: '16px 16px 48px' }}>
+      <main style={{ maxWidth: 480, margin: '0 auto', padding: '16px 16px 80px' }}>
 
         {/* ── Saudação ── */}
         <div style={{ marginBottom: 14 }}>
@@ -276,6 +277,17 @@ export default async function PainelPage({ params }: Props) {
               ? '✅ DNA 100% completo — seu relatório está pronto!'
               : 'Complete mais informações para receber dicas melhores.'}
           </p>
+          {dnaProgress < 100 && (
+            <a href={`/${unitSlug}/dna`} style={{
+              display: 'inline-flex', alignItems: 'center', gap: 5,
+              marginTop: 10,
+              background: C.purple, color: '#fff',
+              borderRadius: 8, padding: '7px 14px',
+              fontSize: 11, fontWeight: 600, textDecoration: 'none',
+            }}>
+              🧬 Continuar DNA ({dnaProgress}%) →
+            </a>
+          )}
         </div>
 
         {/* ── Card: Relatório pronto (só aparece quando DNA = 100%) ── */}
@@ -596,6 +608,8 @@ export default async function PainelPage({ params }: Props) {
         </div>
 
       </main>
+
+      <LeadBottomNav unitSlug={unitSlug} />
     </div>
   )
 }

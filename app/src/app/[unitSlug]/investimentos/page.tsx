@@ -15,6 +15,7 @@ import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { C } from '@/app/components/ui'
 import { InvestimentosClient } from './InvestimentosClient'
 import { createInvestment } from '@/lib/actions'
+import { LeadBottomNav } from '@/app/components/LeadBottomNav'
 
 // ── Mapeamento de tipos ───────────────────────────────────────────────────────
 
@@ -152,7 +153,7 @@ export default async function InvestimentosPage({ params, searchParams }: Props)
         }}>← Painel</a>
       </header>
 
-      <main style={{ maxWidth: 480, margin: '0 auto', padding: '16px 16px 48px' }}>
+      <main style={{ maxWidth: 480, margin: '0 auto', padding: '16px 16px 80px' }}>
 
         {/* ── Título ── */}
         <div style={{ marginBottom: 16 }}>
@@ -249,6 +250,8 @@ export default async function InvestimentosPage({ params, searchParams }: Props)
         />
 
       </main>
+
+      <LeadBottomNav unitSlug={unitSlug} />
     </div>
   )
 }

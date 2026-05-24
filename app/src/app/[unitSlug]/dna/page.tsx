@@ -4,6 +4,7 @@ import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { saveDnaAnswers } from '@/lib/actions'
 import { C } from '@/app/components/ui'
 import { DnaForm } from './DnaForm'
+import { LeadBottomNav } from '@/app/components/LeadBottomNav'
 import type { DnaAnswerRecord } from '@/types/database'
 
 interface Props {
@@ -91,7 +92,7 @@ export default async function DnaPage({ params, searchParams }: Props) {
         </div>
       </header>
 
-      <main style={{ maxWidth: 480, margin: '0 auto', padding: '16px 16px 60px' }}>
+      <main style={{ maxWidth: 480, margin: '0 auto', padding: '16px 16px 80px' }}>
 
         {/* Barra de progresso geral */}
         <div style={{
@@ -112,6 +113,8 @@ export default async function DnaPage({ params, searchParams }: Props) {
         />
 
       </main>
+
+      <LeadBottomNav unitSlug={unitSlug} />
     </div>
   )
 }

@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation'
 import { createExpense } from '@/lib/actions'
 import { C } from '@/app/components/ui'
 import { ExpenseForm } from './ExpenseForm'
+import { LeadBottomNav } from '@/app/components/LeadBottomNav'
 
 interface Props {
   params: Promise<{ unitSlug: string }>
@@ -50,7 +51,7 @@ export default async function NovaDepesaPage({ params }: Props) {
         </div>
       </header>
 
-      <main style={{ maxWidth: 480, margin: '0 auto', padding: '16px 16px 48px' }}>
+      <main style={{ maxWidth: 480, margin: '0 auto', padding: '16px 16px 80px' }}>
 
         <p style={{ fontSize: 13, color: C.textSec, margin: '0 0 16px', lineHeight: 1.5 }}>
           Registre em poucos segundos para melhorar seu DNA Financeiro.
@@ -63,6 +64,8 @@ export default async function NovaDepesaPage({ params }: Props) {
         />
 
       </main>
+
+      <LeadBottomNav unitSlug={unitSlug} />
     </div>
   )
 }

@@ -2,6 +2,7 @@ import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { C } from '@/app/components/ui'
+import { LeadBottomNav } from '@/app/components/LeadBottomNav'
 
 const CATEGORY_LABELS: Record<string, { label: string; emoji: string }> = {
   alimentacao: { label: 'Alimentação',  emoji: '🍽️' },
@@ -75,7 +76,7 @@ export default async function SucessoPage({ params }: Props) {
       </header>
 
       <main style={{
-        maxWidth: 480, margin: '0 auto', padding: '48px 20px',
+        maxWidth: 480, margin: '0 auto', padding: '32px 20px 80px',
         display: 'flex', flexDirection: 'column', alignItems: 'center',
       }}>
 
@@ -160,6 +161,8 @@ export default async function SucessoPage({ params }: Props) {
         </div>
 
       </main>
+
+      <LeadBottomNav unitSlug={unitSlug} />
     </div>
   )
 }
