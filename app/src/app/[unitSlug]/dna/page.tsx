@@ -9,12 +9,12 @@ import type { DnaAnswerRecord } from '@/types/database'
 
 interface Props {
   params:       Promise<{ unitSlug: string }>
-  searchParams: Promise<{ etapa?: string; dna?: string }>
+  searchParams: Promise<{ etapa?: string; dna?: string; saved?: string; concluido?: string }>
 }
 
 export default async function DnaPage({ params, searchParams }: Props) {
-  const { unitSlug }        = await params
-  const { etapa: etapaRaw } = await searchParams
+  const { unitSlug }                        = await params
+  const { etapa: etapaRaw, saved, concluido } = await searchParams
 
   // ── Sessão ────────────────────────────────────────────────────────────────
   const cookieStore = await cookies()
@@ -94,23 +94,134 @@ export default async function DnaPage({ params, searchParams }: Props) {
 
       <main style={{ maxWidth: 480, margin: '0 auto', padding: '16px 16px 80px' }}>
 
-        {/* Barra de progresso geral */}
-        <div style={{
-          background: C.purpleBg, borderRadius: 99, height: 4, marginBottom: 20, overflow: 'hidden',
-        }}>
-          <div style={{
-            height: '100%', borderRadius: 99, background: C.purple,
-            width: `${lead.dna_progress}%`, transition: 'width .4s',
-          }} />
-        </div>
+        {concluido === '1' ? (
 
-        <DnaForm
-          unitSlug={unitSlug}
-          initialStage={initialStage}
-          existingAnswers={existingAnswers}
-          saveDnaAction={saveDnaAction}
-          leadDnaStage={lead.dna_stage}
-        />
+          /* ── PARTE E — Tela de conclusão ── */
+          <div style={{ textAlign: 'center', paddingTop: 12 }}>
+
+            {/* Celebração */}
+            <div style={{ fontSize: 64, marginBottom: 10, lineHeight: 1 }}>🎉</div>
+            <h1 style={{ fontSize: 22, fontWeight: 800, color: C.text, margin: '0 0 6px', lineHeight: 1.3 }}>
+              Parabéns, {firstName}!
+            </h1>
+            <p style={{ fontSize: 15, fontWeight: 600, color: C.purple, margin: '0 0 8px' }}>
+              Seu DNA Financeiro está completo!
+            </p>
+            <p style={{
+              fontSize: 13, color: C.textSec, margin: '0 0 24px', lineHeight: 1.65,
+              maxWidth: 320, marginInline: 'auto',
+            }}>
+              Agora conseguimos gerar um relatório mais completo sobre sua realidade,
+              seus pontos fortes, pontos de atenção e próximos passos.
+            </p>
+
+            {/* Cards de benefícios desbloqueados */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 24, textAlign: 'left' }}>
+              {[
+                { emoji: '🧬', title: 'Diagnóstico completo',  desc: 'Perfil financeiro baseado nas suas respostas' },
+                { emoji: '📋', title: 'Relatório liberado',     desc: 'Análise completa e personalizada para você' },
+                { emoji: '🎯', title: 'Oportunidades',          desc: 'Sugestões compatíveis com sua realidade' },
+                { emoji: '🗺️', title: 'Plano financeiro',       desc: 'Próximos passos certeiros para sua meta' },
+              ].map(card => (
+                <div key={card.emoji} style={{
+                  background: '#fff', borderRadius: 16, padding: '14px 12px',
+                  border: `0.5px solid ${C.border}`,
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.05)',
+                }}>
+                  <div style={{ fontSize: 26, marginBottom: 6 }}>{card.emoji}</div>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: C.text, marginBottom: 3 }}>
+                    {card.title}
+                  </div>
+                  <div style={{ fontSize: 10, color: C.textSec, lineHeight: 1.45 }}>
+                    {card.desc}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Ações */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <a href={`/${unitSlug}/relatorio`} style={{
+                display: 'block', background: C.purple, color: '#fff',
+                borderRadius: 14, padding: '16px',
+                fontSize: 15, fontWeight: 700, textDecoration: 'none',
+                textAlign: 'center', letterSpacing: 0.2,
+                boxShadow: `0 4px 18px ${C.purple}40`,
+              }}>
+                📋 Ver meu relatório
+              </a>
+              <a href={`/${unitSlug}/painel`} style={{
+                display: 'block', background: '#fff', color: C.text,
+                border: `1px solid ${C.border}`, borderRadius: 14,
+                padding: '14px', fontSize: 13, fontWeight: 500,
+                textDecoration: 'none', textAlign: 'center',
+              }}>
+                ← Voltar ao painel
+              </a>
+            </div>
+          </div>
+
+        ) : (
+          <>
+            {/* ── PARTE A — Card hero de progresso ── */}
+            <div style={{
+              background: `linear-gradient(135deg, ${C.purpleBg} 0%, #fff 100%)`,
+              borderRadius: 18, border: `0.5px solid ${C.purple}20`,
+              padding: '16px 18px', marginBottom: 18,
+            }}>
+              <p style={{ margin: '0 0 2px', fontSize: 11, color: C.textSec, fontWeight: 500 }}>
+                Complete aos poucos e receba um plano cada vez mais inteligente.
+              </p>
+              <p style={{ margin: '0 0 12px', fontSize: 17, fontWeight: 800, color: C.text }}>
+                Meu DNA Financeiro
+              </p>
+
+              {/* Barra de progresso */}
+              <div style={{ background: C.bgSecondary, borderRadius: 99, height: 8, overflow: 'hidden', marginBottom: 8 }}>
+                <div style={{
+                  height: '100%', borderRadius: 99,
+                  background: lead.dna_progress >= 100
+                    ? C.green
+                    : `linear-gradient(90deg, ${C.purple}, ${C.purpleDeep})`,
+                  width: `${Math.max(lead.dna_progress, 2)}%`,
+                  transition: 'width .5s',
+                }} />
+              </div>
+
+              {/* Legenda */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+                <p style={{ margin: 0, fontSize: 11, color: C.textSec, lineHeight: 1.45, flex: 1 }}>
+                  {lead.dna_progress === 0
+                    ? '👋 Você está começando a construir seu diagnóstico.'
+                    : lead.dna_progress <= 30
+                    ? '📊 Seu consultor já entende melhor sua realidade.'
+                    : lead.dna_progress <= 60
+                    ? '🚀 Falta pouco para liberar seu relatório completo.'
+                    : lead.dna_progress < 100
+                    ? '⭐ Quase lá! Complete para o diagnóstico perfeito.'
+                    : '🎉 Seu DNA está completo. Seu relatório está pronto!'}
+                </p>
+                <span style={{
+                  fontSize: 13, fontWeight: 700, flexShrink: 0,
+                  color: lead.dna_progress >= 100 ? C.greenDark : C.purpleDeep,
+                  background: lead.dna_progress >= 100 ? C.greenBg : C.purpleBg,
+                  borderRadius: 99, padding: '5px 11px',
+                }}>
+                  {lead.dna_progress}%
+                </span>
+              </div>
+            </div>
+
+            <DnaForm
+              unitSlug={unitSlug}
+              initialStage={initialStage}
+              existingAnswers={existingAnswers}
+              saveDnaAction={saveDnaAction}
+              leadDnaStage={lead.dna_stage}
+              showSavedBanner={saved === '1'}
+            />
+          </>
+        )}
 
       </main>
 

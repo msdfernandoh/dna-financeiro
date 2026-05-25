@@ -613,8 +613,33 @@ export default async function RelatorioPage({ params }: Props) {
           </p>
         </div>
 
-        {/* Aviso se DNA incompleto */}
-        {dnaProgress < 100 && (
+        {/* Badge DNA completo / aviso DNA incompleto */}
+        {dnaProgress >= 100 ? (
+          <div style={{
+            background: C.greenBg, borderRadius: 14,
+            padding: '12px 14px', marginBottom: 12,
+            display: 'flex', gap: 10, alignItems: 'center',
+            border: `0.5px solid ${C.green}30`,
+          }}>
+            <span style={{ fontSize: 18, flexShrink: 0 }}>🧬</span>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <p style={{ margin: '0 0 1px', fontSize: 12, fontWeight: 700, color: C.greenDark }}>
+                DNA completo ✅
+              </p>
+              <p style={{ margin: 0, fontSize: 11, color: C.greenDark, lineHeight: 1.4, opacity: 0.8 }}>
+                Este relatório foi gerado com base no seu DNA Financeiro completo.
+              </p>
+            </div>
+            <a href={`/${unitSlug}/dna`} style={{
+              flexShrink: 0, fontSize: 10, color: C.greenDark,
+              background: 'rgba(0,0,0,0.07)', borderRadius: 8,
+              padding: '5px 9px', textDecoration: 'none', fontWeight: 500,
+              whiteSpace: 'nowrap',
+            }}>
+              🔄 Atualizar
+            </a>
+          </div>
+        ) : (
           <div style={{
             background: C.amberBg, borderRadius: 14,
             padding: '12px 14px', marginBottom: 12,
@@ -626,7 +651,7 @@ export default async function RelatorioPage({ params }: Props) {
                 DNA {dnaProgress}% completo
               </p>
               <p style={{ margin: 0, fontSize: 11, color: C.amberDark, lineHeight: 1.5 }}>
-                Complete as etapas restantes para um relatório ainda mais preciso e personalizado.{' '}
+                Complete seu DNA para deixar este relatório mais preciso.{' '}
                 <a href={`/${unitSlug}/dna`} style={{ color: C.purpleDeep, fontWeight: 600, textDecoration: 'none' }}>
                   Completar agora →
                 </a>

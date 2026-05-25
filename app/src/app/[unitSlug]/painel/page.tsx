@@ -329,7 +329,7 @@ export default async function PainelPage({ params }: Props) {
               ? '✅ DNA 100% completo — seu relatório está pronto!'
               : 'Complete mais informações para receber dicas melhores.'}
           </p>
-          {dnaProgress < 100 && (
+          {dnaProgress < 100 ? (
             <a href={`/${unitSlug}/dna`} style={{
               display: 'inline-flex', alignItems: 'center', gap: 5,
               marginTop: 10,
@@ -339,6 +339,25 @@ export default async function PainelPage({ params }: Props) {
             }}>
               🧬 Continuar DNA ({dnaProgress}%) →
             </a>
+          ) : (
+            <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
+              <a href={`/${unitSlug}/relatorio`} style={{
+                display: 'inline-flex', alignItems: 'center', gap: 5,
+                background: C.purple, color: '#fff',
+                borderRadius: 8, padding: '7px 14px',
+                fontSize: 11, fontWeight: 600, textDecoration: 'none',
+              }}>
+                📋 Ver relatório →
+              </a>
+              <a href={`/${unitSlug}/dna`} style={{
+                display: 'inline-flex', alignItems: 'center', gap: 5,
+                background: C.bgSecondary, color: C.textSec,
+                borderRadius: 8, padding: '7px 14px',
+                fontSize: 11, fontWeight: 500, textDecoration: 'none',
+              }}>
+                🔄 Atualizar respostas
+              </a>
+            </div>
           )}
         </div>
 

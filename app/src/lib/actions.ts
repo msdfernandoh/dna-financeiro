@@ -601,10 +601,12 @@ export async function saveDnaAnswers(
     .update({ dna_stage: newStage, dna_progress: newProgress })
     .eq('id', lead.id)
 
-  // 6. Redirecionar para a próxima etapa (ou painel se completou tudo)
+  // 6. Redirecionar para a próxima etapa ou tela de conclusão
   const nextStage = stepNum >= 6 ? 0 : stepNum + 1
   if (nextStage === 0) {
-    redirect(`/${unitSlug}/painel?dna=completo`)
+    // Tela de conclusão emocional dentro do próprio /dna (PARTE E)
+    redirect(`/${unitSlug}/dna?concluido=1`)
   }
-  redirect(`/${unitSlug}/dna?etapa=${nextStage}`)
+  // Banner "Seu DNA ficou mais inteligente!" na próxima etapa (PARTE D)
+  redirect(`/${unitSlug}/dna?etapa=${nextStage}&saved=1`)
 }
