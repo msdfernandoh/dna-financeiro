@@ -9,6 +9,9 @@
 
 export type UnitPlan = 'basic' | 'standard' | 'premium'
 
+export type UnitStatus = 'active' | 'paused' | 'cancelled'
+export type BillingPlan = 'gratis' | 'piloto' | 'mensal' | 'anual' | 'franquia'
+
 export interface Unit {
   id: string
   name: string
@@ -18,6 +21,9 @@ export interface Unit {
   state: string
   plan: UnitPlan
   active: boolean
+  unit_status: UnitStatus       // status operacional: active | paused | cancelled
+  billing_plan: BillingPlan     // plano comercial/contratual
+  notes: string | null          // observações internas (só master)
   logo_url: string | null
   primary_color: string | null
   contact_name: string

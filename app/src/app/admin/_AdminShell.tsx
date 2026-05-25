@@ -100,7 +100,7 @@ export function AdminShell({ session, title, children, back }: Props) {
           display: 'flex', alignItems: 'center', gap: 2,
           overflowX: 'auto', scrollbarWidth: 'none', height: 38,
         }}>
-          <AdminNav />
+          <AdminNav role={session.role} />
         </div>
       </header>
 

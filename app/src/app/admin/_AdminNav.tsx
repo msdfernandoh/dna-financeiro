@@ -2,26 +2,34 @@
 
 // =============================================================================
 // Nav horizontal do admin — Client Component (usa usePathname)
+// Itens com masterOnly: true ficam ocultos para unit_admin e unit_viewer.
 // =============================================================================
 
 import { usePathname } from 'next/navigation'
 import { C } from '@/app/components/ui'
+import type { AdminSession } from '@/lib/supabase/admin'
 
 const NAV_ITEMS = [
-  { href: '/admin',               label: 'Dashboard',    emoji: '📊', available: true,  exact: true  },
-  { href: '/admin/oportunidades', label: 'Oportunidades', emoji: '🎯', available: true,  exact: false },
-  { href: '/admin/leads',         label: 'Leads',         emoji: '👥', available: true,  exact: false },
-  { href: '/admin/campanhas',     label: 'Campanhas',     emoji: '📣', available: false, exact: false },
-  { href: '/admin/perguntas',     label: 'Perguntas',     emoji: '❓', available: false, exact: false },
-  { href: '/admin/relatorios',    label: 'Relatórios',    emoji: '📋', available: false, exact: false },
+  { href: '/admin',               label: 'Dashboard',    emoji: '📊', available: true,  exact: true,  masterOnly: false },
+  { href: '/admin/oportunidades', label: 'Oportunidades', emoji: '🎯', available: true,  exact: false, masterOnly: false },
+  { href: '/admin/leads',         label: 'Leads',         emoji: '👥', available: true,  exact: false, masterOnly: false },
+  { href: '/admin/unidades',      label: 'Unidades',      emoji: '🏢', available: true,  exact: false, masterOnly: true  },
+  { href: '/admin/usuarios',      label: 'Usuários',      emoji: '👤', available: true,  exact: false, masterOnly: true  },
+  { href: '/admin/campanhas',     label: 'Campanhas',     emoji: '📣', available: false, exact: false, masterOnly: false },
+  { href: '/admin/perguntas',     label: 'Perguntas',     emoji: '❓', available: false, exact: false, masterOnly: false },
+  { href: '/admin/relatorios',    label: 'Relatórios',    emoji: '📋', available: false, exact: false, masterOnly: false },
 ] as const
 
-export function AdminNav() {
+interface Props { role: AdminSession['role'] }
+
+export function AdminNav({ role }: Props) {
   const pathname = usePathname()
 
   return (
     <>
       {NAV_ITEMS.map(item => {
+        if (item.masterOnly && role !== 'master') return null
+
         const isActive = item.exact
           ? pathname === item.href
           : pathname.startsWith(item.href)
