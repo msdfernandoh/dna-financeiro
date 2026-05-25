@@ -169,8 +169,9 @@ export interface OpportunityAdmin {
   description:  string | null
   cta_label:    string | null
   cta_url:      string | null
-  target_dream: string | null
-  featured:     boolean
+  target_dream:   string | null
+  target_profile: string | null   // null = para todos; valor = perfil empresarial alvo
+  featured:       boolean
   active:       boolean
   position:     number
   starts_at:    string | null   // ISO UTC — null = sem restrição de início

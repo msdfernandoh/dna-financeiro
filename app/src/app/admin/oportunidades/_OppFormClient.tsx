@@ -16,6 +16,21 @@ const OPP_TYPES: { value: OppType; label: string; emoji: string }[] = [
   { value: 'partner',   label: 'Parceiro',     emoji: '🤝' },
 ]
 
+const PROFILE_OPTIONS: { value: string; label: string }[] = [
+  { value: 'empresario',          label: '🏢 Empresário / Sócio'          },
+  { value: 'mei',                 label: '🔖 MEI'                         },
+  { value: 'autonomo_informal',   label: '🧑‍🔧 Autônomo / Informal'        },
+  { value: 'paga_aluguel',        label: '🏠 Paga aluguel do ponto'       },
+  { value: 'quer_ponto_proprio',  label: '🔑 Quer ponto próprio'          },
+  { value: 'tem_frota',           label: '🚛 Tem frota de veículos'       },
+  { value: 'renovar_frota',       label: '🔄 Quer renovar frota'          },
+  { value: 'precisa_capital',     label: '💰 Precisa de capital de giro'  },
+  { value: 'tem_garantia',        label: '🏦 Tem bem como garantia'       },
+  { value: 'precisa_equipamento', label: '🔧 Precisa de equipamento'      },
+  { value: 'precisa_marketing',   label: '📣 Precisa de marketing'        },
+  { value: 'sem_conta_pj',        label: '💳 Sem conta PJ separada'       },
+]
+
 const DREAM_OPTIONS = [
   { value: 'carro',     label: '🚗 Carro'           },
   { value: 'casa',      label: '🏠 Casa'            },
@@ -202,6 +217,28 @@ export function OppFormClient({ action, initial, units, isMaster, unitId, mode }
             <option key={d.value} value={d.value}>{d.label}</option>
           ))}
         </select>
+      </div>
+
+      {/* ── Perfil alvo (empresarial) ── */}
+      <div style={cardSt}>
+        <label style={labelSt} htmlFor="target_profile">
+          Perfil alvo <span style={{ color: C.textTer }}>(opcional — filtra por perfil empresarial)</span>
+        </label>
+        <select
+          id="target_profile"
+          name="target_profile"
+          defaultValue={def.target_profile ?? ''}
+          style={inputSt}
+        >
+          <option value="">Para todos os perfis</option>
+          {PROFILE_OPTIONS.map(p => (
+            <option key={p.value} value={p.value}>{p.label}</option>
+          ))}
+        </select>
+        <p style={{ fontSize: 10, color: C.textTer, margin: '6px 0 0', lineHeight: 1.4 }}>
+          💡 Deixe em branco para aparecer a todos. Selecione um perfil empresarial para exibir
+          apenas a leads com aquele perfil de negócio identificado.
+        </p>
       </div>
 
       {/* ── Posição ── */}

@@ -26,6 +26,16 @@ const VALID_DREAMS = [
   'faculdade', 'reforma', 'dividas', 'moto', 'outro',
 ]
 
+// Perfis empresariais válidos para target_profile
+const VALID_PROFILES: string[] = [
+  'empresario', 'mei', 'autonomo_informal',
+  'paga_aluguel', 'quer_ponto_proprio',
+  'tem_frota', 'renovar_frota',
+  'precisa_capital', 'tem_garantia',
+  'precisa_equipamento', 'precisa_marketing',
+  'sem_conta_pj',
+]
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 /**
@@ -49,6 +59,8 @@ function parseOppFormData(formData: FormData) {
   const cta_url     = formData.get('cta_url')?.toString().trim()     || null
   const rawDream    = formData.get('target_dream')?.toString().trim()
   const target_dream = rawDream && VALID_DREAMS.includes(rawDream) ? rawDream : null
+  const rawProfile   = formData.get('target_profile')?.toString().trim()
+  const target_profile = rawProfile && VALID_PROFILES.includes(rawProfile) ? rawProfile : null
   const featured    = formData.get('featured') === 'on'
   const active      = formData.get('active') === 'on'
   const position    = parseInt(formData.get('position')?.toString() ?? '0', 10)
@@ -59,7 +71,7 @@ function parseOppFormData(formData: FormData) {
   const starts_at = parseDatetimeLocal(formData.get('starts_at')?.toString() ?? null)
   const ends_at   = parseDatetimeLocal(formData.get('ends_at')?.toString()   ?? null)
 
-  return { title, description, cta_label, cta_url, target_dream, featured, active, position, type, starts_at, ends_at }
+  return { title, description, cta_label, cta_url, target_dream, target_profile, featured, active, position, type, starts_at, ends_at }
 }
 
 // ── Criar oportunidade ────────────────────────────────────────────────────────
@@ -116,13 +128,14 @@ export async function createOpportunity(
     description:  parsed.description,
     cta_label:    parsed.cta_label,
     cta_url:      parsed.cta_url,
-    target_dream: parsed.target_dream,
-    featured:     parsed.featured,
-    active:       parsed.active,
-    position:     isNaN(parsed.position) ? 0 : parsed.position,
-    starts_at:    parsed.starts_at,
-    ends_at:      parsed.ends_at,
-    created_by:   session.profileId,   // ← sempre do token, nunca do form
+    target_dream:   parsed.target_dream,
+    target_profile: parsed.target_profile,
+    featured:       parsed.featured,
+    active:         parsed.active,
+    position:       isNaN(parsed.position) ? 0 : parsed.position,
+    starts_at:      parsed.starts_at,
+    ends_at:        parsed.ends_at,
+    created_by:     session.profileId,   // ← sempre do token, nunca do form
   })
 
   if (error) {
@@ -189,13 +202,14 @@ export async function updateOpportunity(
       description:  parsed.description,
       cta_label:    parsed.cta_label,
       cta_url:      parsed.cta_url,
-      target_dream: parsed.target_dream,
-      featured:     parsed.featured,
-      active:       parsed.active,
-      position:     isNaN(parsed.position) ? 0 : parsed.position,
-      starts_at:    parsed.starts_at,
-      ends_at:      parsed.ends_at,
-      updated_at:   new Date().toISOString(),
+      target_dream:   parsed.target_dream,
+      target_profile: parsed.target_profile,
+      featured:       parsed.featured,
+      active:         parsed.active,
+      position:       isNaN(parsed.position) ? 0 : parsed.position,
+      starts_at:      parsed.starts_at,
+      ends_at:        parsed.ends_at,
+      updated_at:     new Date().toISOString(),
     })
     .eq('id', id)
 

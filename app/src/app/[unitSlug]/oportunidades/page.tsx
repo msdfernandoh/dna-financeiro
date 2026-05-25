@@ -222,6 +222,149 @@ function buildFallback(
   return list
 }
 
+// ── Gerador de fallback empresarial ──────────────────────────────────────
+// Só exibido para leads com isBusinessLead=true quando não há opps reais.
+// bizTags são computados server-side — nunca chegam ao client.
+
+function buildBizFallback(bizTags: string[]): OppCard[] {
+  const list: OppCard[] = []
+  let seq = 2000
+
+  const mk = (partial: Omit<OppCard, 'id' | 'isReal'>): OppCard => ({
+    id: `biz-fallback-${seq++}`,
+    isReal: false,
+    ...partial,
+  })
+
+  // ── Sempre: diagnóstico empresarial ──
+  list.push(mk({
+    type: 'course',
+    title: 'Diagnóstico financeiro para empresas — gratuito',
+    description: 'Entenda a saúde financeira do seu negócio e receba orientações personalizadas para crescer com segurança.',
+    cta_label: 'Quero o diagnóstico',
+    cta_url: null,
+    target_dream: null,
+    featured: true,
+  }))
+
+  // ── Capital de giro ──
+  if (bizTags.includes('precisa_capital')) {
+    list.push(mk({
+      type: 'partner',
+      title: 'Capital de giro para sua empresa — condições especiais',
+      description: 'Crédito rápido e acessível para você manter o caixa da empresa sempre positivo e aproveitar oportunidades.',
+      cta_label: 'Simular crédito',
+      cta_url: null,
+      target_dream: null,
+      featured: false,
+    }))
+  }
+
+  // ── Paga aluguel comercial ──
+  if (bizTags.includes('paga_aluguel')) {
+    list.push(mk({
+      type: 'course',
+      title: 'Como reduzir ou substituir o aluguel do seu ponto',
+      description: 'Estratégias práticas para renegociar, migrar ou eliminar o custo de aluguel comercial do seu negócio.',
+      cta_label: 'Ver estratégias',
+      cta_url: null,
+      target_dream: null,
+      featured: false,
+    }))
+  }
+
+  // ── Quer ponto próprio ──
+  if (bizTags.includes('quer_ponto_proprio')) {
+    list.push(mk({
+      type: 'event',
+      title: 'Palestra: Financiamento imobiliário para empresários',
+      description: 'Descubra as melhores linhas de crédito para adquirir seu imóvel comercial com parcelas acessíveis.',
+      cta_label: 'Reservar vaga',
+      cta_url: null,
+      target_dream: null,
+      featured: false,
+    }))
+  }
+
+  // ── Frota ──
+  if (bizTags.includes('tem_frota') || bizTags.includes('renovar_frota')) {
+    list.push(mk({
+      type: 'partner',
+      title: 'Financiamento de veículos — frota para sua empresa',
+      description: 'Renove ou amplie sua frota com condições especiais para pessoa jurídica e parcelas que cabem no seu caixa.',
+      cta_label: 'Simular agora',
+      cta_url: null,
+      target_dream: null,
+      featured: false,
+    }))
+  }
+
+  // ── Equipamento ──
+  if (bizTags.includes('precisa_equipamento')) {
+    list.push(mk({
+      type: 'partner',
+      title: 'Crédito para equipamentos — FINAME e linhas PJ',
+      description: 'Adquira máquinas e equipamentos com financiamento de longo prazo e juros mais baixos que o mercado.',
+      cta_label: 'Conhecer linhas',
+      cta_url: null,
+      target_dream: null,
+      featured: false,
+    }))
+  }
+
+  // ── Marketing ──
+  if (bizTags.includes('precisa_marketing')) {
+    list.push(mk({
+      type: 'course',
+      title: 'Marketing digital para pequenas empresas — do zero',
+      description: 'Aprenda a atrair mais clientes usando Instagram, Google e WhatsApp sem precisar gastar muito.',
+      cta_label: 'Começar agora',
+      cta_url: null,
+      target_dream: null,
+      featured: false,
+    }))
+  }
+
+  // ── Sem conta PJ ──
+  if (bizTags.includes('sem_conta_pj')) {
+    list.push(mk({
+      type: 'partner',
+      title: 'Abra sua conta PJ gratuita em minutos',
+      description: 'Separe as finanças pessoais das empresariais e ganhe credibilidade com clientes e fornecedores.',
+      cta_label: 'Abrir conta',
+      cta_url: null,
+      target_dream: null,
+      featured: false,
+    }))
+  }
+
+  // ── MEI ──
+  if (bizTags.includes('mei')) {
+    list.push(mk({
+      type: 'course',
+      title: 'Tudo que o MEI pode fazer — benefícios e limites',
+      description: 'Guia completo sobre obrigações, benefícios previdenciários e como formalizar seu crescimento além do MEI.',
+      cta_label: 'Saber mais',
+      cta_url: null,
+      target_dream: null,
+      featured: false,
+    }))
+  }
+
+  // ── Sempre: educação financeira empresarial ──
+  list.push(mk({
+    type: 'challenge',
+    title: 'Desafio 30 dias: Organize as finanças da sua empresa',
+    description: 'Um desafio prático para separar contas, controlar o caixa e tomar decisões financeiras mais seguras.',
+    cta_label: 'Aceitar desafio',
+    cta_url: null,
+    target_dream: null,
+    featured: false,
+  }))
+
+  return list
+}
+
 // ── Página ─────────────────────────────────────────────────────────────────
 
 export default async function OportunidadesPage({ params }: Props) {
@@ -289,11 +432,42 @@ export default async function OportunidadesPage({ params }: Props) {
     isBusinessLead = ['empresario', 'pj', 'autonomo'].includes(bizAns?.answer ?? '')
   } catch { /* não empresarial */ }
 
+  // ── bizTags — calculados server-side a partir de business_profiles ──────
+  // Nunca chegam ao client; usados apenas para filtrar query de oportunidades.
+  let bizTags: string[] = []
+  if (isBusinessLead) {
+    try {
+      const { data: biz } = await supabase
+        .from('business_profiles')
+        .select('formalization, has_rent, wants_own_premise, has_vehicles, wants_fleet_renewal, needs_working_capital, has_collateral_asset, needs_equipment, needs_marketing, has_separate_accounts')
+        .eq('lead_id', leadId!)
+        .eq('unit_id', lead.unit_id)
+        .is('deleted_at', null)
+        .single()
+      if (biz) {
+        bizTags = ['empresario']
+        if (biz.formalization === 'mei') bizTags.push('mei')
+        if (['autonomo', 'informal'].includes(biz.formalization ?? '')) bizTags.push('autonomo_informal')
+        if (biz.has_rent               === true)  bizTags.push('paga_aluguel')
+        if (biz.wants_own_premise      === true)  bizTags.push('quer_ponto_proprio')
+        if (biz.has_vehicles           === true)  bizTags.push('tem_frota')
+        if (biz.wants_fleet_renewal    === true)  bizTags.push('renovar_frota')
+        if (biz.needs_working_capital  === true)  bizTags.push('precisa_capital')
+        if (biz.has_collateral_asset   === true)  bizTags.push('tem_garantia')
+        if (biz.needs_equipment        === true)  bizTags.push('precisa_equipamento')
+        if (biz.needs_marketing        === true)  bizTags.push('precisa_marketing')
+        if (biz.has_separate_accounts  === false) bizTags.push('sem_conta_pj')
+      }
+    } catch { /* sem perfil ainda — mostra apenas opps sem target_profile */ }
+    // Garante ao menos o tag genérico para leads empresariais sem perfil
+    if (bizTags.length === 0) bizTags = ['empresario']
+  }
+
   // ── Oportunidades reais do banco ─────────────────────────────────────────
   let realOpps: OppCard[] = []
   try {
     const now = new Date().toISOString()
-    const { data: dbOpps } = await supabase
+    let oppQ = supabase
       .from('opportunities')
       .select('id, type, title, description, cta_label, cta_url, target_dream, featured')
       .eq('unit_id', lead.unit_id)        // ← unit_id do banco, não do browser
@@ -302,6 +476,17 @@ export default async function OportunidadesPage({ params }: Props) {
       .or(`target_dream.is.null,target_dream.eq.${dream}`)
       .or(`starts_at.is.null,starts_at.lte.${now}`)   // período: início ok
       .or(`ends_at.is.null,ends_at.gte.${now}`)        // período: fim ok
+
+    // Filtro de perfil — server-side, nunca no client
+    // Lead não empresarial: apenas opps sem target_profile
+    // Lead empresarial: opps sem target_profile + opps com target_profile compatível
+    if (isBusinessLead && bizTags.length > 0) {
+      oppQ = oppQ.or(`target_profile.is.null,target_profile.in.(${bizTags.join(',')})`)
+    } else {
+      oppQ = oppQ.is('target_profile', null)
+    }
+
+    const { data: dbOpps } = await oppQ
       .order('featured', { ascending: false })
       .order('position', { ascending: true })
       .limit(20)
@@ -320,7 +505,11 @@ export default async function OportunidadesPage({ params }: Props) {
   } catch { /* DB indisponível → usa só fallback */ }
 
   // ── Fallback personalizado ───────────────────────────────────────────────
-  const fallback = buildFallback(dream, hasDebt, wantsRenda)
+  // Lead empresarial recebe fallback empresarial contextual; demais recebem fallback pessoal.
+  // Fallback só aparece quando não há oportunidades reais compatíveis.
+  const fallback = isBusinessLead
+    ? buildBizFallback(bizTags)
+    : buildFallback(dream, hasDebt, wantsRenda)
 
   // Oportunidades reais têm prioridade absoluta — fallback só aparece sem dados reais
   const allOpps: OppCard[] = realOpps.length > 0 ? realOpps : fallback

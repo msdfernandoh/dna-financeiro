@@ -112,20 +112,38 @@ export default async function PainelPage({ params }: Props) {
     isBusiness = ['empresario', 'pj', 'autonomo'].includes(bizAns?.answer ?? '')
   } catch { /* não é lead empresarial */ }
 
-  // 3c. Progresso do DNA empresarial (se for lead de negócio)
+  // 3c. Progresso do DNA empresarial + bizTags para filtro de oportunidades
+  // Ambos obtidos numa única query (evita round-trip extra)
   let bizProgress = 0
+  let bizTags: string[] = []
   if (isBusiness) {
     try {
       const supabaseBizP = createServerSupabaseClient()
       const { data: bizData } = await supabaseBizP
         .from('business_profiles')
-        .select('biz_dna_progress')
+        .select('biz_dna_progress, formalization, has_rent, wants_own_premise, has_vehicles, wants_fleet_renewal, needs_working_capital, has_collateral_asset, needs_equipment, needs_marketing, has_separate_accounts')
         .eq('lead_id', leadId!)
         .eq('unit_id', lead.unit_id)
         .is('deleted_at', null)
         .single()
-      bizProgress = bizData?.biz_dna_progress ?? 0
+      if (bizData) {
+        bizProgress = bizData.biz_dna_progress ?? 0
+        bizTags = ['empresario']
+        if (bizData.formalization === 'mei') bizTags.push('mei')
+        if (['autonomo', 'informal'].includes(bizData.formalization ?? '')) bizTags.push('autonomo_informal')
+        if (bizData.has_rent               === true)  bizTags.push('paga_aluguel')
+        if (bizData.wants_own_premise      === true)  bizTags.push('quer_ponto_proprio')
+        if (bizData.has_vehicles           === true)  bizTags.push('tem_frota')
+        if (bizData.wants_fleet_renewal    === true)  bizTags.push('renovar_frota')
+        if (bizData.needs_working_capital  === true)  bizTags.push('precisa_capital')
+        if (bizData.has_collateral_asset   === true)  bizTags.push('tem_garantia')
+        if (bizData.needs_equipment        === true)  bizTags.push('precisa_equipamento')
+        if (bizData.needs_marketing        === true)  bizTags.push('precisa_marketing')
+        if (bizData.has_separate_accounts  === false) bizTags.push('sem_conta_pj')
+      }
     } catch { /* sem perfil ainda */ }
+    // Garante ao menos o tag genérico para leads empresariais sem perfil
+    if (bizTags.length === 0) bizTags = ['empresario']
   }
 
   // 4. Cálculos financeiros (unit_id usado apenas no servidor para queries)
@@ -189,7 +207,8 @@ export default async function PainelPage({ params }: Props) {
   try {
     const supabase3 = createServerSupabaseClient()
     const nowIso = new Date().toISOString()
-    const { data: oppData } = await supabase3
+
+    let featQ = supabase3
       .from('opportunities')
       .select('id, title, type, target_dream, cta_url, cta_label')
       .eq('unit_id', lead.unit_id)               // ← unit_id do banco, nunca do browser
@@ -198,9 +217,19 @@ export default async function PainelPage({ params }: Props) {
       .is('deleted_at', null)
       .or(`starts_at.is.null,starts_at.lte.${nowIso}`)
       .or(`ends_at.is.null,ends_at.gte.${nowIso}`)
+
+    // Filtro de perfil — server-side, nunca no client
+    if (isBusiness && bizTags.length > 0) {
+      featQ = featQ.or(`target_profile.is.null,target_profile.in.(${bizTags.join(',')})`)
+    } else {
+      featQ = featQ.is('target_profile', null)
+    }
+
+    const { data: oppData } = await featQ
       .order('position', { ascending: true })
       .limit(1)
       .single()
+
     featuredOppTitle  = oppData?.title        ?? null
     featuredOppId     = oppData?.id           ?? null
     featuredOppType   = oppData?.type         ?? null
