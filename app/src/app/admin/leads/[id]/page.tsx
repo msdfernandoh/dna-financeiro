@@ -610,9 +610,51 @@ export default async function LeadDetailPage({
       </div>
 
       {/* ════════════════════════════════════════════
+          PARTE I — Navegação por âncoras
+      ════════════════════════════════════════════ */}
+      <div style={{
+        position: 'sticky', top: 90, zIndex: 10,
+        background: C.bgApp,
+        marginBottom: 14,
+        marginLeft: -16, marginRight: -16, paddingLeft: 16, paddingRight: 16,
+        paddingTop: 8, paddingBottom: 8,
+        borderBottom: `0.5px solid ${C.border}`,
+        overflowX: 'auto', scrollbarWidth: 'none',
+        display: 'flex', gap: 6, alignItems: 'center',
+      }}>
+        {([
+          { href: '#resumo',        label: '📊 Resumo'        },
+          { href: '#dna',           label: '🧬 DNA'           },
+          { href: '#financeiro',    label: '💸 Financeiro'    },
+          { href: '#investimentos', label: '💚 Investimentos' },
+          { href: '#oportunidades', label: '🎯 Oportunidades' },
+          { href: '#origem',        label: '📍 Origem'        },
+          { href: '#historico',     label: '📅 Histórico'     },
+        ] as const).map(chip => (
+          <a
+            key={chip.href}
+            href={chip.href}
+            style={{
+              display: 'inline-block', flexShrink: 0,
+              padding: '5px 13px', borderRadius: 99,
+              background: '#fff',
+              border: `0.5px solid ${C.border}`,
+              color: C.textSec,
+              fontSize: 11, fontWeight: 600,
+              textDecoration: 'none',
+              whiteSpace: 'nowrap',
+              boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
+            }}
+          >
+            {chip.label}
+          </a>
+        ))}
+      </div>
+
+      {/* ════════════════════════════════════════════
           PARTE B — Resumo do atendimento
       ════════════════════════════════════════════ */}
-      <Section title="Resumo do atendimento" emoji="📊">
+      <Section id="resumo" title="Resumo do atendimento" emoji="📊">
         <InfoGrid>
           <InfoItem label="Sonho principal" value={dreamLabel} />
           {range && <InfoItem label="Faixa de renda" value={range} />}
@@ -676,7 +718,7 @@ export default async function LeadDetailPage({
       {/* ════════════════════════════════════════════
           PARTE C — DNA Respondido
       ════════════════════════════════════════════ */}
-      <Section title="DNA Financeiro respondido" emoji="🧬">
+      <Section id="dna" title="DNA Financeiro respondido" emoji="🧬">
         {dnaAnswers.length === 0 ? (
           <div style={{ background: C.bgSecondary, borderRadius: 10, padding: '14px 16px', textAlign: 'center' }}>
             <p style={{ fontSize: 13, color: C.textSec, margin: '0 0 4px', fontWeight: 500 }}>
@@ -782,7 +824,7 @@ export default async function LeadDetailPage({
       {/* ════════════════════════════════════════════
           PARTE D — Resumo financeiro
       ════════════════════════════════════════════ */}
-      <Section title="Resumo financeiro" emoji="💸">
+      <Section id="financeiro" title="Resumo financeiro" emoji="💸">
         {/* KPIs de despesa */}
         <div style={{
           display: 'grid',
@@ -876,7 +918,7 @@ export default async function LeadDetailPage({
       {/* ════════════════════════════════════════════
           PARTE E — Investimentos e Patrimônio
       ════════════════════════════════════════════ */}
-      <Section title="Investimentos e Patrimônio" emoji="💚">
+      <Section id="investimentos" title="Investimentos e Patrimônio" emoji="💚">
         {!canSeeSensitive ? (
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
             <div style={{
@@ -1007,7 +1049,7 @@ export default async function LeadDetailPage({
       {/* ════════════════════════════════════════════
           PARTE F — Interações com oportunidades
       ════════════════════════════════════════════ */}
-      <Section title="Interações com oportunidades" emoji="🎯">
+      <Section id="oportunidades" title="Interações com oportunidades" emoji="🎯">
         {interactions.length === 0 ? (
           <p style={{ fontSize: 13, color: C.textSec, margin: 0 }}>
             Este lead ainda não interagiu com nenhuma oportunidade.
@@ -1063,7 +1105,7 @@ export default async function LeadDetailPage({
       {/* ════════════════════════════════════════════
           PARTE G — Origem e campanha
       ════════════════════════════════════════════ */}
-      <Section title="Origem e campanha" emoji="📍">
+      <Section id="origem" title="Origem e campanha" emoji="📍">
         <InfoGrid>
           <InfoItem label="Campanha"            value={campaignName} />
           <InfoItem label="Cadastrou em"        value={fmtDate(lead.created_at)} />
@@ -1118,7 +1160,7 @@ export default async function LeadDetailPage({
       {/* ════════════════════════════════════════════
           PARTE H — Histórico resumido
       ════════════════════════════════════════════ */}
-      <Section title="Histórico" emoji="📅">
+      <Section id="historico" title="Histórico" emoji="📅">
         <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
           {[
             { emoji: '📝', label: 'Cadastro realizado', date: lead.created_at, done: true },
@@ -1201,11 +1243,12 @@ export default async function LeadDetailPage({
 
 // ── Sub-componentes ──────────────────────────────────────────────────────────
 
-function Section({ title, emoji, children }: { title: string; emoji: string; children: ReactNode }) {
+function Section({ title, emoji, children, id }: { title: string; emoji: string; children: ReactNode; id?: string }) {
   return (
-    <div style={{
+    <div id={id} style={{
       background: '#fff', borderRadius: 16, border: `0.5px solid ${C.border}`,
       padding: '14px 16px', marginBottom: 12,
+      scrollMarginTop: 140,
     }}>
       <h2 style={{
         fontSize: 13, fontWeight: 700, color: C.text,
