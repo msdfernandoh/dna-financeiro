@@ -98,6 +98,36 @@ export default async function PainelPage({ params }: Props) {
     redirect(`/${unitSlug}`)
   }
 
+  // 3b. Detecção de lead empresarial (via DNA answers — unit_id do banco)
+  let isBusiness = false
+  try {
+    const supabaseBiz = createServerSupabaseClient()
+    const { data: bizAns } = await supabaseBiz
+      .from('dna_answers')
+      .select('answer')
+      .eq('lead_id', leadId!)
+      .eq('unit_id', lead.unit_id)
+      .eq('question_key', 'vinculo_trabalho')
+      .single()
+    isBusiness = ['empresario', 'pj', 'autonomo'].includes(bizAns?.answer ?? '')
+  } catch { /* não é lead empresarial */ }
+
+  // 3c. Progresso do DNA empresarial (se for lead de negócio)
+  let bizProgress = 0
+  if (isBusiness) {
+    try {
+      const supabaseBizP = createServerSupabaseClient()
+      const { data: bizData } = await supabaseBizP
+        .from('business_profiles')
+        .select('biz_dna_progress')
+        .eq('lead_id', leadId!)
+        .eq('unit_id', lead.unit_id)
+        .is('deleted_at', null)
+        .single()
+      bizProgress = bizData?.biz_dna_progress ?? 0
+    } catch { /* sem perfil ainda */ }
+  }
+
   // 4. Cálculos financeiros (unit_id usado apenas no servidor para queries)
   const income       = lead.monthly_income   ?? 0
   const expenses     = lead.monthly_expenses ?? 0
@@ -360,6 +390,47 @@ export default async function PainelPage({ params }: Props) {
             </div>
           )}
         </div>
+
+        {/* ── Card: Minha Empresa (só para leads empresariais) ── */}
+        {isBusiness && (
+          <div style={{
+            background: '#fff', borderRadius: 16, border: `0.5px solid ${C.border}`,
+            padding: '14px 16px', marginBottom: 10,
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+              <div style={{
+                width: 36, height: 36, borderRadius: 10,
+                background: C.purpleBg, flexShrink: 0,
+                display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18,
+              }}>🏢</div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <p style={{ margin: 0, fontSize: 13, fontWeight: 600, color: C.text }}>Minha Empresa</p>
+                <p style={{ margin: 0, fontSize: 11, color: C.textSec }}>DNA Empresarial</p>
+              </div>
+              <span style={{ fontSize: 12, fontWeight: 700, color: C.purple }}>{bizProgress}%</span>
+            </div>
+            <div style={{ background: C.bgSecondary, borderRadius: 99, height: 5, overflow: 'hidden', marginBottom: 8 }}>
+              <div style={{
+                height: '100%', borderRadius: 99, background: C.purple,
+                width: `${Math.max(bizProgress, 3)}%`, transition: 'width 0.5s',
+              }} />
+            </div>
+            <p style={{ margin: '0 0 8px', fontSize: 11, color: C.textSec, lineHeight: 1.4 }}>
+              {bizProgress >= 100
+                ? '✅ Perfil empresarial completo — consultor pode analisar seu negócio.'
+                : 'Complete o DNA do seu negócio para receber soluções personalizadas.'}
+            </p>
+            <a href={`/${unitSlug}/empresa`} style={{
+              display: 'inline-flex', alignItems: 'center', gap: 5,
+              background: bizProgress >= 100 ? C.bgSecondary : C.purple,
+              color: bizProgress >= 100 ? C.textSec : '#fff',
+              borderRadius: 8, padding: '7px 14px',
+              fontSize: 11, fontWeight: 600, textDecoration: 'none',
+            }}>
+              {bizProgress >= 100 ? '🔄 Revisar dados' : '🏢 Preencher dados da empresa →'}
+            </a>
+          </div>
+        )}
 
         {/* ── Card: Relatório pronto (só aparece quando DNA = 100%) ── */}
         {dnaProgress >= 100 && (
@@ -687,7 +758,7 @@ export default async function PainelPage({ params }: Props) {
 
       </main>
 
-      <LeadBottomNav unitSlug={unitSlug} />
+      <LeadBottomNav unitSlug={unitSlug} isBusiness={isBusiness} />
     </div>
   )
 }

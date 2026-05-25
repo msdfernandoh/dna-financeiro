@@ -276,6 +276,19 @@ export default async function OportunidadesPage({ params }: Props) {
     }
   } catch { /* fallback default: sem personalização extra */ }
 
+  // Detecção de lead empresarial (personalização silenciosa)
+  let isBusinessLead = false
+  try {
+    const { data: bizAns } = await supabase
+      .from('dna_answers')
+      .select('answer')
+      .eq('lead_id', leadId!)
+      .eq('unit_id', lead.unit_id)
+      .eq('question_key', 'vinculo_trabalho')
+      .single()
+    isBusinessLead = ['empresario', 'pj', 'autonomo'].includes(bizAns?.answer ?? '')
+  } catch { /* não empresarial */ }
+
   // ── Oportunidades reais do banco ─────────────────────────────────────────
   let realOpps: OppCard[] = []
   try {
@@ -392,7 +405,7 @@ export default async function OportunidadesPage({ params }: Props) {
 
       </main>
 
-      <LeadBottomNav unitSlug={unitSlug} />
+      <LeadBottomNav unitSlug={unitSlug} isBusiness={isBusinessLead} />
     </div>
   )
 }

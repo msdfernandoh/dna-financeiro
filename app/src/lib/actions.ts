@@ -24,7 +24,7 @@
 import { cookies, headers } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
-import type { LeadCreateInput, CreateLeadResult, CreateExpenseResult, CreateInvestmentResult, SaveDnaResult, FormErrors } from '@/types/database'
+import type { LeadCreateInput, CreateLeadResult, CreateExpenseResult, CreateInvestmentResult, SaveDnaResult, SaveBusinessProfileState, FormErrors } from '@/types/database'
 
 // ---------------------------------------------------------------------------
 // Validação dos campos do formulário
@@ -609,4 +609,170 @@ export async function saveDnaAnswers(
   }
   // Banner "Seu DNA ficou mais inteligente!" na próxima etapa (PARTE D)
   redirect(`/${unitSlug}/dna?etapa=${nextStage}&saved=1`)
+}
+
+// ---------------------------------------------------------------------------
+// Server Action: Salvar perfil empresarial (business_profiles)
+//
+// SEGURANÇA:
+//   • unitSlug vinculado pelo Server Component — nunca do browser
+//   • lead_id e unit_id resolvidos do cookie + banco — nunca do FormData
+//   • Dados pessoais e empresariais permanecem em tabelas separadas
+//   • UPSERT idempotente com onConflict: 'lead_id'
+//   • Campos sensíveis (faturamento, garantias) só ficam no banco
+//   • redirect() no sucesso — state só carrega erros de validação
+// ---------------------------------------------------------------------------
+
+export async function saveBusinessProfile(
+  unitSlug: string,
+  _prevState: SaveBusinessProfileState,
+  formData: FormData,
+): Promise<SaveBusinessProfileState> {
+  // 1. Cookie → leadId
+  const cookieStore = await cookies()
+  const token = cookieStore.get('dna_lead_token')?.value
+  if (!token) return { error: 'Sessão não encontrada. Faça o cadastro novamente.' }
+
+  let leadId: string
+  try {
+    const decoded = Buffer.from(token, 'base64url').toString('utf-8')
+    leadId = decoded.split(':')[0]
+    if (!leadId || !/^[0-9a-f-]{36}$/.test(leadId)) throw new Error('invalid')
+  } catch {
+    return { error: 'Sessão inválida.' }
+  }
+
+  // 2. Validar bloco (1–5)
+  const block = parseInt(formData.get('block')?.toString() ?? '0', 10)
+  if (block < 1 || block > 5) return { error: 'Bloco inválido.' }
+
+  // 3. Resolver lead + unit_id do banco (valida unit_slug → impede cross-unit)
+  const supabase = createServerSupabaseClient()
+  const { data: lead, error: leadError } = await supabase
+    .from('leads')
+    .select('id, unit_id')
+    .eq('id', leadId)
+    .eq('unit_slug', unitSlug)
+    .is('deleted_at', null)
+    .single()
+
+  if (leadError || !lead) return { error: 'Sessão inválida ou expirada. Tente novamente.' }
+
+  // 4. Helpers locais — nunca do browser
+  const parseBool = (key: string): boolean | null => {
+    const v = formData.get(key)?.toString()
+    if (v === 'true')  return true
+    if (v === 'false') return false
+    return null
+  }
+  const parseMoney = (key: string): number | null => {
+    const raw = (formData.get(key)?.toString() ?? '').trim()
+    if (!raw) return null
+    const v = parseFloat(raw.replace(/\./g, '').replace(',', '.'))
+    return isNaN(v) || v < 0 ? null : v
+  }
+  const parseStr = (key: string): string | null => {
+    const v = (formData.get(key)?.toString() ?? '').trim()
+    return v || null
+  }
+
+  // 5. Montar objeto de upsert específico por bloco
+  const upsertData: Record<string, unknown> = {
+    unit_id: lead.unit_id,  // ← resolvido do banco, nunca do browser
+    lead_id: lead.id,       // ← resolvido do cookie
+  }
+
+  if (block === 1) {
+    const revenue = parseMoney('monthly_revenue')
+    const bizExp  = parseMoney('monthly_biz_expenses')
+    Object.assign(upsertData, {
+      business_name:        parseStr('business_name'),
+      segment:              parseStr('segment'),
+      activity_years:       parseStr('activity_years'),
+      formalization:        parseStr('formalization'),
+      employee_count:       parseStr('employee_count'),
+      monthly_revenue:      revenue,
+      monthly_biz_expenses: bizExp,
+      monthly_profit: (revenue !== null && bizExp !== null) ? revenue - bizExp : null,
+    })
+  } else if (block === 2) {
+    const hasRent         = parseBool('has_rent')
+    const wantsOwnPremise = parseBool('wants_own_premise')
+    Object.assign(upsertData, {
+      premise_type:           parseStr('premise_type'),
+      has_rent:               hasRent,
+      rent_amount:            hasRent ? parseMoney('rent_amount') : null,
+      wants_own_premise:      wantsOwnPremise,
+      monthly_premise_budget: wantsOwnPremise ? parseMoney('monthly_premise_budget') : null,
+    })
+  } else if (block === 3) {
+    const hasVehicles       = parseBool('has_vehicles')
+    const wantsFleetRenewal = parseBool('wants_fleet_renewal')
+    Object.assign(upsertData, {
+      has_vehicles:         hasVehicles,
+      vehicle_types:        hasVehicles ? parseStr('vehicle_types') : null,
+      vehicle_count:        hasVehicles ? parseStr('vehicle_count') : null,
+      vehicle_ownership:    hasVehicles ? parseStr('vehicle_ownership') : null,
+      wants_fleet_renewal:  hasVehicles ? wantsFleetRenewal : null,
+      monthly_fleet_budget: (hasVehicles && wantsFleetRenewal) ? parseMoney('monthly_fleet_budget') : null,
+    })
+  } else if (block === 4) {
+    const needsWC       = parseBool('needs_working_capital')
+    const hasCollateral = parseBool('has_collateral_asset')
+    Object.assign(upsertData, {
+      needs_working_capital:   needsWC,
+      working_capital_amount:  needsWC ? parseMoney('working_capital_amount') : null,
+      working_capital_purpose: needsWC ? parseStr('working_capital_purpose') : null,
+      has_collateral_asset:    hasCollateral,
+      collateral_type:         hasCollateral ? parseStr('collateral_type') : null,
+      collateral_value:        hasCollateral ? parseMoney('collateral_value') : null,
+    })
+  } else {
+    // block === 5
+    Object.assign(upsertData, {
+      needs_equipment:       parseBool('needs_equipment'),
+      needs_renovation:      parseBool('needs_renovation'),
+      needs_hiring:          parseBool('needs_hiring'),
+      needs_marketing:       parseBool('needs_marketing'),
+      needs_financial_org:   parseBool('needs_financial_org'),
+      has_separate_accounts: parseBool('has_separate_accounts'),
+    })
+  }
+
+  // 6. UPSERT — unit_id e lead_id vêm do servidor, nunca do browser
+  const { error: upsertError } = await supabase
+    .from('business_profiles')
+    .upsert(upsertData, { onConflict: 'lead_id' })
+
+  if (upsertError) {
+    console.error('[saveBusinessProfile] upsert error:', upsertError.message)
+    return { error: 'Erro ao salvar. Tente novamente em instantes.' }
+  }
+
+  // 7. Recalcular biz_dna_progress (não crítico — falha silenciosa)
+  try {
+    const { data: bizRow } = await supabase
+      .from('business_profiles')
+      .select('business_name, segment, formalization, monthly_revenue, has_rent, premise_type, wants_own_premise, has_vehicles, vehicle_types, needs_working_capital, has_collateral_asset, needs_equipment, needs_renovation, needs_hiring, needs_marketing, needs_financial_org, has_separate_accounts')
+      .eq('lead_id', lead.id)
+      .is('deleted_at', null)
+      .single()
+
+    if (bizRow) {
+      const b1 = [bizRow.business_name, bizRow.segment, bizRow.formalization, bizRow.monthly_revenue].some(v => v !== null && v !== undefined)
+      const b2 = [bizRow.has_rent, bizRow.premise_type, bizRow.wants_own_premise].some(v => v !== null && v !== undefined)
+      const b3 = [bizRow.has_vehicles, bizRow.vehicle_types].some(v => v !== null && v !== undefined)
+      const b4 = [bizRow.needs_working_capital, bizRow.has_collateral_asset].some(v => v !== null && v !== undefined)
+      const b5 = [bizRow.needs_equipment, bizRow.needs_renovation, bizRow.needs_hiring, bizRow.needs_marketing, bizRow.needs_financial_org, bizRow.has_separate_accounts].some(v => v !== null && v !== undefined)
+      const progress = Math.round([b1, b2, b3, b4, b5].filter(Boolean).length / 5 * 100)
+      await supabase
+        .from('business_profiles')
+        .update({ biz_dna_progress: progress })
+        .eq('lead_id', lead.id)
+    }
+  } catch { /* progress update não crítico */ }
+
+  // 8. Redirecionar para próximo bloco ou conclusão (FORA de qualquer try/catch)
+  if (block >= 5) redirect(`/${unitSlug}/empresa?concluido=1`)
+  redirect(`/${unitSlug}/empresa?bloco=${block + 1}`)
 }

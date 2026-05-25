@@ -201,3 +201,51 @@ export interface FormErrors {
   consent_diagnosis?: string
   _form?: string
 }
+
+// ---------------------------------------------------------------------------
+// Perfil Empresarial (business_profiles)
+// ---------------------------------------------------------------------------
+
+// State do Server Action saveBusinessProfile — redirect on success, error on fail
+export type SaveBusinessProfileState = { error: string } | null
+
+export interface BusinessProfile {
+  id: string
+  unit_id: string
+  lead_id: string
+  business_name: string | null
+  segment: string | null
+  activity_years: string | null
+  formalization: string | null
+  employee_count: string | null
+  monthly_revenue: number | null        // ⚠️ sensível
+  monthly_biz_expenses: number | null   // ⚠️ sensível
+  monthly_profit: number | null         // ⚠️ sensível
+  has_rent: boolean | null
+  rent_amount: number | null            // ⚠️ sensível
+  premise_type: string | null
+  wants_own_premise: boolean | null
+  monthly_premise_budget: number | null // ⚠️ sensível
+  has_vehicles: boolean | null
+  vehicle_types: string | null
+  vehicle_count: string | null
+  vehicle_ownership: string | null
+  wants_fleet_renewal: boolean | null
+  monthly_fleet_budget: number | null   // ⚠️ sensível
+  needs_working_capital: boolean | null
+  working_capital_amount: number | null  // ⚠️ sensível
+  working_capital_purpose: string | null
+  has_collateral_asset: boolean | null
+  collateral_type: string | null
+  collateral_value: number | null       // ⚠️⚠️ muito sensível
+  needs_equipment: boolean | null
+  needs_renovation: boolean | null
+  needs_hiring: boolean | null
+  needs_marketing: boolean | null
+  needs_financial_org: boolean | null
+  has_separate_accounts: boolean | null
+  biz_dna_progress: number
+  created_at: string
+  updated_at: string
+  deleted_at: string | null
+}

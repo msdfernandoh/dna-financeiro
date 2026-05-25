@@ -180,6 +180,15 @@ function incomeRange(income: number | null | undefined): string {
   return 'Acima de R$ 7.000'
 }
 
+function bizRevenueRange(v: number | null | undefined): string {
+  if (v == null)   return 'Não informado'
+  if (v < 5000)    return 'Até R$ 5k'
+  if (v < 15000)   return 'R$ 5k – R$ 15k'
+  if (v < 30000)   return 'R$ 15k – R$ 30k'
+  if (v < 60000)   return 'R$ 30k – R$ 60k'
+  return 'Acima de R$ 60k'
+}
+
 // Traduz valor de resposta para label legível
 function fmtDnaAnswer(questionKey: string, answer: string, answerType: string): string {
   const labels = ANSWER_LABELS[questionKey]
@@ -268,6 +277,39 @@ type DnaAnswer = {
 }
 
 type ExpRow = { amount: number; category: string; expense_date: string }
+
+type BizProfileAdmin = {
+  business_name: string | null
+  segment: string | null
+  formalization: string | null
+  activity_years: string | null
+  employee_count: string | null
+  monthly_revenue: number | null
+  monthly_biz_expenses: number | null
+  monthly_profit: number | null
+  has_rent: boolean | null
+  rent_amount: number | null
+  premise_type: string | null
+  wants_own_premise: boolean | null
+  has_vehicles: boolean | null
+  vehicle_count: string | null
+  vehicle_ownership: string | null
+  wants_fleet_renewal: boolean | null
+  needs_working_capital: boolean | null
+  working_capital_amount: number | null
+  working_capital_purpose: string | null
+  has_collateral_asset: boolean | null
+  collateral_type: string | null
+  collateral_value: number | null
+  needs_equipment: boolean | null
+  needs_renovation: boolean | null
+  needs_hiring: boolean | null
+  needs_marketing: boolean | null
+  needs_financial_org: boolean | null
+  has_separate_accounts: boolean | null
+  biz_dna_progress: number
+  updated_at: string
+}
 
 // ── Página ────────────────────────────────────────────────────────────────────
 
@@ -422,6 +464,22 @@ export default async function LeadDetailPage({
   const topTypeKey   = Object.entries(invTypeTotals).sort((a, b) => b[1] - a[1])[0]?.[0] ?? null
   const topTypeInfo  = topTypeKey ? INV_TYPE_LABELS[topTypeKey] : null
   const hasRecurring = investments.some(i => i.is_recurring)
+
+  // ── 5b. Perfil Empresarial (se for lead de negócio) ───────────────────────
+  const isBusinessLead = ['empresario', 'pj', 'autonomo'].includes(dnaMap['vinculo_trabalho'] ?? '')
+  let bizProfile: BizProfileAdmin | null = null
+  if (isBusinessLead) {
+    try {
+      const { data: bizData } = await supabase
+        .from('business_profiles')
+        .select('business_name, segment, formalization, activity_years, employee_count, monthly_revenue, monthly_biz_expenses, monthly_profit, has_rent, rent_amount, premise_type, wants_own_premise, has_vehicles, vehicle_count, vehicle_ownership, wants_fleet_renewal, needs_working_capital, working_capital_amount, working_capital_purpose, has_collateral_asset, collateral_type, collateral_value, needs_equipment, needs_renovation, needs_hiring, needs_marketing, needs_financial_org, has_separate_accounts, biz_dna_progress, updated_at')
+        .eq('lead_id', leadId)
+        .eq('unit_id', lead.unit_id)
+        .is('deleted_at', null)
+        .single()
+      bizProfile = bizData as BizProfileAdmin | null
+    } catch { /* sem perfil empresarial */ }
+  }
 
   // ── 6. Nome da unidade (master only) ──────────────────────────────────────
   let unitName = ''
@@ -625,12 +683,13 @@ export default async function LeadDetailPage({
         {([
           { href: '#resumo',        label: '📊 Resumo'        },
           { href: '#dna',           label: '🧬 DNA'           },
+          ...(isBusinessLead ? [{ href: '#empresa', label: '🏢 Empresa' }] : []),
           { href: '#financeiro',    label: '💸 Financeiro'    },
           { href: '#investimentos', label: '💚 Investimentos' },
           { href: '#oportunidades', label: '🎯 Oportunidades' },
           { href: '#origem',        label: '📍 Origem'        },
           { href: '#historico',     label: '📅 Histórico'     },
-        ] as const).map(chip => (
+        ]).map(chip => (
           <a
             key={chip.href}
             href={chip.href}
@@ -820,6 +879,138 @@ export default async function LeadDetailPage({
           </div>
         )}
       </Section>
+
+      {/* ════════════════════════════════════════════
+          PARTE C2 — Minha Empresa (só para leads empresariais)
+      ════════════════════════════════════════════ */}
+      {isBusinessLead && (
+        <Section id="empresa" title="Minha Empresa" emoji="🏢">
+
+          {/* Barra de progresso */}
+          <div style={{ marginBottom: 12 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+              <span style={{ fontSize: 11, color: C.textSec }}>DNA Empresarial</span>
+              <span style={{ fontSize: 11, fontWeight: 700, color: C.purple }}>
+                {bizProfile?.biz_dna_progress ?? 0}%
+              </span>
+            </div>
+            <div style={{ background: C.bgSecondary, borderRadius: 99, height: 5, overflow: 'hidden' }}>
+              <div style={{
+                height: '100%', borderRadius: 99, background: C.purple,
+                width: `${Math.max(bizProfile?.biz_dna_progress ?? 0, 3)}%`,
+              }} />
+            </div>
+          </div>
+
+          {bizProfile ? (
+            <>
+              {/* Bloco 1 — Dados gerais */}
+              <InfoGrid>
+                <InfoItem label="Nome do negócio" value={bizProfile.business_name ?? '—'} />
+                <InfoItem label="Setor"           value={bizProfile.segment ?? '—'} />
+                <InfoItem label="Formalização"    value={bizProfile.formalization ?? '—'} />
+                <InfoItem label="Tempo ativo"     value={bizProfile.activity_years ?? '—'} />
+                <InfoItem label="Colaboradores"   value={bizProfile.employee_count ?? '—'} />
+              </InfoGrid>
+
+              {/* Financeiro empresarial — sensível */}
+              {canSeeSensitive ? (
+                <InfoGrid>
+                  <InfoItem label="Faturamento mensal"  value={bizProfile.monthly_revenue    != null ? fmtBRL(bizProfile.monthly_revenue)    : '—'} />
+                  <InfoItem label="Gastos operacionais" value={bizProfile.monthly_biz_expenses != null ? fmtBRL(bizProfile.monthly_biz_expenses) : '—'} />
+                  <InfoItem label="Lucro estimado"      value={bizProfile.monthly_profit      != null ? fmtBRL(bizProfile.monthly_profit)      : '—'} />
+                  {bizProfile.has_rent && (
+                    <InfoItem label="Aluguel do ponto" value={bizProfile.rent_amount != null ? fmtBRL(bizProfile.rent_amount) : '—'} />
+                  )}
+                </InfoGrid>
+              ) : (
+                <InfoGrid>
+                  <InfoItem label="Faixa de faturamento" value={bizRevenueRange(bizProfile.monthly_revenue)} />
+                </InfoGrid>
+              )}
+
+              {/* Bloco 2 — Ponto */}
+              <InfoGrid>
+                <InfoItem label="Tipo de ponto"   value={bizProfile.premise_type ?? '—'} />
+                <InfoItem label="Paga aluguel?"   value={bizProfile.has_rent === true ? 'Sim' : bizProfile.has_rent === false ? 'Não' : '—'} />
+                <InfoItem label="Quer ponto próprio?" value={bizProfile.wants_own_premise === true ? 'Sim' : bizProfile.wants_own_premise === false ? 'Não' : '—'} />
+              </InfoGrid>
+
+              {/* Bloco 3 — Frota */}
+              {bizProfile.has_vehicles !== null && (
+                <InfoGrid>
+                  <InfoItem label="Usa veículos?" value={bizProfile.has_vehicles ? 'Sim' : 'Não'} />
+                  {bizProfile.has_vehicles && (
+                    <>
+                      <InfoItem label="Quantidade"    value={bizProfile.vehicle_count    ?? '—'} />
+                      <InfoItem label="Situação frota" value={bizProfile.vehicle_ownership ?? '—'} />
+                      <InfoItem label="Quer renovar?" value={bizProfile.wants_fleet_renewal === true ? 'Sim' : 'Não'} />
+                    </>
+                  )}
+                </InfoGrid>
+              )}
+
+              {/* Bloco 4 — Capital */}
+              {bizProfile.needs_working_capital !== null && (
+                <InfoGrid>
+                  <InfoItem label="Precisa capital de giro?" value={bizProfile.needs_working_capital ? 'Sim' : 'Não'} />
+                  {bizProfile.needs_working_capital && canSeeSensitive && bizProfile.working_capital_amount != null && (
+                    <InfoItem label="Valor necessário" value={fmtBRL(bizProfile.working_capital_amount)} />
+                  )}
+                  {bizProfile.working_capital_purpose && (
+                    <InfoItem label="Finalidade" value={bizProfile.working_capital_purpose} />
+                  )}
+                  <InfoItem label="Tem garantia?" value={bizProfile.has_collateral_asset === true ? 'Sim' : bizProfile.has_collateral_asset === false ? 'Não' : '—'} />
+                  {bizProfile.has_collateral_asset && canSeeSensitive && bizProfile.collateral_value != null && (
+                    <InfoItem label="Valor garantia" value={fmtBRL(bizProfile.collateral_value)} />
+                  )}
+                </InfoGrid>
+              )}
+
+              {/* Bloco 5 — Crescimento */}
+              {[
+                bizProfile.needs_equipment,
+                bizProfile.needs_renovation,
+                bizProfile.needs_hiring,
+                bizProfile.needs_marketing,
+                bizProfile.needs_financial_org,
+                bizProfile.has_separate_accounts,
+              ].some(v => v !== null) && (
+                <div style={{ marginTop: 8 }}>
+                  <p style={{ fontSize: 11, fontWeight: 600, color: C.textSec, margin: '0 0 6px' }}>
+                    Necessidades identificadas
+                  </p>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
+                    {bizProfile.needs_equipment     && <span style={{ background: C.purpleBg, color: C.purpleDeep, fontSize: 10, padding: '3px 8px', borderRadius: 99 }}>⚙️ Equipamentos</span>}
+                    {bizProfile.needs_renovation    && <span style={{ background: C.purpleBg, color: C.purpleDeep, fontSize: 10, padding: '3px 8px', borderRadius: 99 }}>🔨 Reforma</span>}
+                    {bizProfile.needs_hiring        && <span style={{ background: C.purpleBg, color: C.purpleDeep, fontSize: 10, padding: '3px 8px', borderRadius: 99 }}>👥 Contratação</span>}
+                    {bizProfile.needs_marketing     && <span style={{ background: C.purpleBg, color: C.purpleDeep, fontSize: 10, padding: '3px 8px', borderRadius: 99 }}>📣 Marketing</span>}
+                    {bizProfile.needs_financial_org && <span style={{ background: C.amberBg, color: C.amberDark,  fontSize: 10, padding: '3px 8px', borderRadius: 99 }}>📊 Org. financeira</span>}
+                    {bizProfile.has_separate_accounts === false && <span style={{ background: C.amberBg, color: C.amberDark, fontSize: 10, padding: '3px 8px', borderRadius: 99 }}>⚠️ Contas mescladas</span>}
+                    {bizProfile.has_separate_accounts === true  && <span style={{ background: C.greenBg, color: C.greenDark,  fontSize: 10, padding: '3px 8px', borderRadius: 99 }}>✅ Contas separadas</span>}
+                  </div>
+                </div>
+              )}
+
+              <p style={{ margin: '10px 0 0', fontSize: 10, color: C.textTer }}>
+                Atualizado em {fmtDate(bizProfile.updated_at)}
+              </p>
+            </>
+          ) : (
+            <div style={{
+              background: C.bgSecondary, borderRadius: 10,
+              padding: '12px', textAlign: 'center',
+            }}>
+              <p style={{ margin: '0 0 4px', fontSize: 13, color: C.text, fontWeight: 500 }}>
+                🏢 DNA Empresarial não preenchido
+              </p>
+              <p style={{ margin: 0, fontSize: 11, color: C.textSec }}>
+                Solicite ao lead que preencha o formulário em {`/${lead.unit_slug}/empresa`}
+              </p>
+            </div>
+          )}
+        </Section>
+      )}
 
       {/* ════════════════════════════════════════════
           PARTE D — Resumo financeiro

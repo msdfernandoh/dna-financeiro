@@ -449,6 +449,28 @@ export default async function RelatorioPage({ params }: Props) {
   const prazoLabel      = PRAZO_LABELS[ans.prazo_sonho_principal ?? ''] ?? null
   const barreira        = ans.barreira_principal
 
+  // ── 6b. Detecção de lead empresarial + perfil ────────────────────────────
+  const isBusinessLead = ['empresario', 'pj', 'autonomo'].includes(ans.vinculo_trabalho ?? '')
+  let bizProfileRelatorio: {
+    business_name: string | null
+    segment: string | null
+    formalization: string | null
+    activity_years: string | null
+    biz_dna_progress: number
+  } | null = null
+  if (isBusinessLead) {
+    try {
+      const { data: bizData } = await supabase
+        .from('business_profiles')
+        .select('business_name, segment, formalization, activity_years, biz_dna_progress')
+        .eq('lead_id', leadId!)
+        .eq('unit_id', lead.unit_id)
+        .is('deleted_at', null)
+        .single()
+      bizProfileRelatorio = bizData
+    } catch { /* sem perfil ainda */ }
+  }
+
   const primary = unit.primary_color ? `#${unit.primary_color.replace('#', '')}` : C.purple
   const generated = fmtDate(new Date())
 
@@ -1122,6 +1144,77 @@ export default async function RelatorioPage({ params }: Props) {
         )}
 
         {/* ══════════════════════════════════════════════════════════════════════
+            SEÇÃO 7b — PERFIL EMPRESARIAL (só para leads empresariais)
+        ═══════════════════════════════════════════════════════════════════════ */}
+        {isBusinessLead && (
+          <>
+            <SectionTitle emoji="🏢" title="Perfil Empresarial" />
+            {bizProfileRelatorio ? (
+              <div style={{
+                background: '#fff', borderRadius: 14,
+                padding: '14px', marginBottom: 12,
+                border: `0.5px solid ${C.border}`,
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10 }}>
+                  <div style={{
+                    width: 42, height: 42, borderRadius: 12, flexShrink: 0,
+                    background: C.purpleBg,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22,
+                  }}>🏪</div>
+                  <div>
+                    <p style={{ margin: 0, fontSize: 14, fontWeight: 700, color: C.text }}>
+                      {bizProfileRelatorio.business_name ?? 'Negócio não nomeado'}
+                    </p>
+                    <p style={{ margin: 0, fontSize: 11, color: C.textSec }}>
+                      {[bizProfileRelatorio.segment, bizProfileRelatorio.formalization, bizProfileRelatorio.activity_years]
+                        .filter(Boolean).join(' · ') || 'Dados básicos informados'}
+                    </p>
+                  </div>
+                  <span style={{
+                    marginLeft: 'auto', flexShrink: 0,
+                    background: C.purpleBg, color: C.purpleDeep,
+                    fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 99,
+                  }}>
+                    {bizProfileRelatorio.biz_dna_progress}%
+                  </span>
+                </div>
+                {bizProfileRelatorio.biz_dna_progress < 100 && (
+                  <a href={`/${unitSlug}/empresa`} style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 5,
+                    background: C.purpleBg, color: C.purpleDeep,
+                    borderRadius: 8, padding: '7px 12px',
+                    fontSize: 11, fontWeight: 600, textDecoration: 'none',
+                  }}>
+                    🏢 Completar DNA Empresarial →
+                  </a>
+                )}
+              </div>
+            ) : (
+              <div style={{
+                background: '#fff', borderRadius: 14, padding: '18px', marginBottom: 12,
+                border: `0.5px solid ${C.border}`, textAlign: 'center',
+              }}>
+                <p style={{ margin: '0 0 6px', fontSize: 20 }}>🏢</p>
+                <p style={{ margin: '0 0 4px', fontSize: 13, fontWeight: 500, color: C.text }}>
+                  DNA Empresarial não preenchido
+                </p>
+                <p style={{ margin: '0 0 12px', fontSize: 12, color: C.textSec, lineHeight: 1.5 }}>
+                  Complete o perfil do seu negócio para receber análises e soluções personalizadas para empresários.
+                </p>
+                <a href={`/${unitSlug}/empresa`} style={{
+                  display: 'inline-block',
+                  background: C.purple, color: '#fff',
+                  borderRadius: 10, padding: '8px 18px',
+                  fontSize: 12, fontWeight: 600, textDecoration: 'none',
+                }}>
+                  Preencher dados da empresa →
+                </a>
+              </div>
+            )}
+          </>
+        )}
+
+        {/* ══════════════════════════════════════════════════════════════════════
             SEÇÃO 8 — PLANO 7 DIAS
         ═══════════════════════════════════════════════════════════════════════ */}
         <SectionTitle emoji="📅" title="Plano de Ação — 7 Dias" />
@@ -1248,7 +1341,7 @@ export default async function RelatorioPage({ params }: Props) {
       </main>
 
       <div className="no-print">
-        <LeadBottomNav unitSlug={unitSlug} />
+        <LeadBottomNav unitSlug={unitSlug} isBusiness={isBusinessLead} />
       </div>
     </div>
   )

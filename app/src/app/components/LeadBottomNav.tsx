@@ -14,9 +14,9 @@
 import { usePathname } from 'next/navigation'
 import { C } from '@/app/components/ui'
 
-// ── Itens de navegação ────────────────────────────────────────────────────────
+// ── Itens fixos de navegação ──────────────────────────────────────────────────
 
-const NAV = [
+const NAV_BASE = [
   { key: 'painel',        href: 'painel',       emoji: '🏠', label: 'Painel'    },
   { key: 'despesas',      href: 'despesas/nova', emoji: '💸', label: 'Despesas'  },
   { key: 'investimentos', href: 'investimentos', emoji: '💚', label: 'Investir'  },
@@ -24,16 +24,24 @@ const NAV = [
   { key: 'relatorio',     href: 'relatorio',     emoji: '📋', label: 'Relatório' },
 ] as const
 
+const NAV_EMPRESA = { key: 'empresa', href: 'empresa', emoji: '🏢', label: 'Empresa' } as const
+
 // ── Props ─────────────────────────────────────────────────────────────────────
 
 interface Props {
-  unitSlug: string
+  unitSlug:    string
+  isBusiness?: boolean   // exibe item "Empresa" apenas para leads empresariais
 }
 
 // ── Componente ────────────────────────────────────────────────────────────────
 
-export function LeadBottomNav({ unitSlug }: Props) {
+export function LeadBottomNav({ unitSlug, isBusiness = false }: Props) {
   const pathname = usePathname()
+
+  // Monta lista de itens dinamicamente — "Empresa" só para business leads
+  const items = isBusiness
+    ? [...NAV_BASE.slice(0, 4), NAV_EMPRESA, NAV_BASE[4]]
+    : [...NAV_BASE]
 
   return (
     <nav
@@ -51,7 +59,7 @@ export function LeadBottomNav({ unitSlug }: Props) {
       }}
     >
       <div style={{ display: 'flex', maxWidth: 480, margin: '0 auto' }}>
-        {NAV.map(item => {
+        {items.map(item => {
           // Item ativo: a rota atual contém o segmento-chave
           const isActive = pathname.includes(`/${item.key}`)
 
