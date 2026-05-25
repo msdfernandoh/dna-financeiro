@@ -80,6 +80,10 @@ function waLink(phone: string): string {
   return `https://wa.me/${num}`
 }
 
+function fmtBRL(v: number) {
+  return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 })
+}
+
 // ── Página ────────────────────────────────────────────────────────────────────
 
 interface Props {
@@ -96,7 +100,11 @@ export default async function AdminLeadsPage({ searchParams }: Props) {
   const statusF = sp.status ?? ''
   const dnaF    = sp.dna    ?? ''     // 'complete' | 'incomplete'
   const periodF = sp.period ?? ''     // 'today' | '7d' | '30d'
+  const investF = sp.invest ?? ''     // 'com' | 'sem' | ''
   const unitF   = session.role === 'master' ? (sp.unit ?? '') : ''
+
+  // Controle de privacidade por perfil
+  const canSeeSensitive = session.role !== 'unit_viewer'
 
   // ── Query DB: apenas filtro de unidade (segurança) ─────────────────────────
   // Todos os outros filtros são aplicados in-memory para KPIs corretos.
@@ -122,6 +130,37 @@ export default async function AdminLeadsPage({ searchParams }: Props) {
   const { data: allLeadsRaw } = await dbQ
   const allLeads = (allLeadsRaw ?? []) as LeadRow[]
 
+  // ── Investimentos do mês — universo separado, NUNCA soma com expenses ──────
+  // Uma query por unidade (ou global para master) — sem IN(500 IDs)
+  // Segurança: leads já filtrados por unit_id; investMap restringe a leadIds válidos
+
+  const today        = new Date().toISOString().split('T')[0]
+  const firstOfMonth = `${today.slice(0, 7)}-01`
+
+  const investMap: Record<string, number> = {}
+  try {
+    let invQ = supabase
+      .from('investments')
+      .select('lead_id, amount')
+      .is('deleted_at', null)
+      .gte('investment_date', firstOfMonth)
+
+    // unit_admin / unit_viewer: apenas sua unidade (segurança)
+    if (session.role !== 'master') {
+      invQ = invQ.eq('unit_id', session.unitId!)
+    }
+
+    const { data: invRaw } = await invQ.limit(5000)
+    const allLeadIds = new Set(allLeads.map(l => l.id))
+
+    for (const inv of invRaw ?? []) {
+      // Cruza apenas com leads já autorizados (proteção cross-unit adicional)
+      if (allLeadIds.has(inv.lead_id)) {
+        investMap[inv.lead_id] = (investMap[inv.lead_id] ?? 0) + inv.amount
+      }
+    }
+  } catch { /* silently ignore — não quebra a listagem */ }
+
   // ── KPIs do set completo (antes dos filtros in-memory) ────────────────────
 
   const now          = Date.now()
@@ -134,6 +173,7 @@ export default async function AdminLeadsPage({ searchParams }: Props) {
     sete_dias:    allLeads.filter(l => new Date(l.created_at) >= sevenDaysAgo).length,
     dna_ok:       allLeads.filter(l => l.dna_progress === 100).length,
     qualificados: allLeads.filter(l => l.status === 'qualified' || l.status === 'converted').length,
+    investindo:   allLeads.filter(l => (investMap[l.id] ?? 0) > 0).length,
   }
 
   // ── Filtros in-memory ──────────────────────────────────────────────────────
@@ -156,6 +196,8 @@ export default async function AdminLeadsPage({ searchParams }: Props) {
   if (periodF === 'today')     leads = leads.filter(l => new Date(l.created_at) >= todayStart)
   if (periodF === '7d')        leads = leads.filter(l => new Date(l.created_at) >= sevenDaysAgo)
   if (periodF === '30d')       leads = leads.filter(l => new Date(l.created_at) >= new Date(now - 30 * 86_400_000))
+  if (investF === 'com')       leads = leads.filter(l => (investMap[l.id] ?? 0) > 0)
+  if (investF === 'sem')       leads = leads.filter(l => (investMap[l.id] ?? 0) === 0)
 
   // ── Units: id → nome (master only) ────────────────────────────────────────
 
@@ -179,6 +221,7 @@ export default async function AdminLeadsPage({ searchParams }: Props) {
       ...(statusF && { status: statusF }),
       ...(dnaF    && { dna:    dnaF    }),
       ...(periodF && { period: periodF }),
+      ...(investF && { invest: investF }),
       ...(unitF && session.role === 'master' && { unit: unitF }),
       ...extra,
     }
@@ -188,7 +231,7 @@ export default async function AdminLeadsPage({ searchParams }: Props) {
     return `/admin/leads${qs ? `?${qs}` : ''}`
   }
 
-  const hasAnyFilter = !!(q || dreamF || statusF || dnaF || periodF)
+  const hasAnyFilter = !!(q || dreamF || statusF || dnaF || periodF || investF)
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
@@ -214,6 +257,7 @@ export default async function AdminLeadsPage({ searchParams }: Props) {
         <KpiChip emoji="📅" label="Últimos 7 dias" value={kpi.sete_dias}    href={buildUrl({ period: '7d' })}         active={periodF === '7d'}        />
         <KpiChip emoji="🧬" label="DNA completo"   value={kpi.dna_ok}       href={buildUrl({ dna: 'complete' })}      active={dnaF === 'complete'}     />
         <KpiChip emoji="⭐" label="Qualificados"   value={kpi.qualificados} href={buildUrl({ status: 'qualified' })}  active={statusF === 'qualified'} />
+        <KpiChip emoji="💚" label="Investindo"    value={kpi.investindo}   href={buildUrl({ invest: 'com' })}         active={investF === 'com'}       />
       </div>
 
       {/* ── Filtro por unidade (master only) ── */}
@@ -259,6 +303,13 @@ export default async function AdminLeadsPage({ searchParams }: Props) {
         </FilterRow>
       </div>
 
+      {/* ── Filtro por investimento ── */}
+      <FilterRow label="Investimento">
+        <a href={buildUrl({ invest: '' })}    style={pill(!investF)}>Todos</a>
+        <a href={buildUrl({ invest: 'com' })} style={pill(investF === 'com')}>💚 Investindo</a>
+        <a href={buildUrl({ invest: 'sem' })} style={pill(investF === 'sem')}>⚪ Sem investimento</a>
+      </FilterRow>
+
       {/* ── Busca por nome / telefone ── */}
       <form method="get" action="/admin/leads" style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
         {/* Preserva filtros ativos como hidden fields */}
@@ -266,6 +317,7 @@ export default async function AdminLeadsPage({ searchParams }: Props) {
         {statusF && <input type="hidden" name="status" value={statusF} />}
         {dnaF    && <input type="hidden" name="dna"    value={dnaF}    />}
         {periodF && <input type="hidden" name="period" value={periodF} />}
+        {investF && <input type="hidden" name="invest" value={investF} />}
         {unitF   && <input type="hidden" name="unit"   value={unitF}   />}
 
         <input
@@ -436,6 +488,49 @@ export default async function AdminLeadsPage({ searchParams }: Props) {
                       </span>
                     </div>
                   </div>
+
+                  {/* Linha 2b: badge de investimento */}
+                  {(() => {
+                    const investedAmt = investMap[lead.id] ?? 0
+                    if (investedAmt > 0) {
+                      return (
+                        <div style={{ marginBottom: 8 }}>
+                          <span style={{
+                            background: C.greenBg, color: C.greenDark,
+                            fontSize: 10, padding: '2px 8px', borderRadius: 99, fontWeight: 600,
+                          }}>
+                            💚 Se paga{canSeeSensitive ? ` · ${fmtBRL(investedAmt)}/mês` : ''}
+                          </span>
+                        </div>
+                      )
+                    }
+                    const isPotential = lead.dna_progress >= 80 || lead.status === 'qualified' || lead.status === 'converted'
+                    if (isPotential) {
+                      return (
+                        <div style={{ marginBottom: 8 }}>
+                          <span style={{
+                            background: C.amberBg, color: C.amberDark,
+                            fontSize: 10, padding: '2px 8px', borderRadius: 99, fontWeight: 600,
+                          }}>
+                            📈 Potencial investidor
+                          </span>
+                        </div>
+                      )
+                    }
+                    if (canSeeSensitive) {
+                      return (
+                        <div style={{ marginBottom: 8 }}>
+                          <span style={{
+                            background: C.bgSecondary, color: C.textSec,
+                            fontSize: 10, padding: '2px 8px', borderRadius: 99, fontWeight: 500,
+                          }}>
+                            ⚪ Sem investimento
+                          </span>
+                        </div>
+                      )
+                    }
+                    return null
+                  })()}
 
                   {/* Linha 3: datas + link para detalhe */}
                   <div style={{
