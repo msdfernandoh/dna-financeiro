@@ -30,6 +30,25 @@ const DREAM_LABELS: Record<string, string> = {
   aposentadoria: 'Aposentadoria',
 }
 
+// ── Investimentos ─────────────────────────────────────────────────────────────
+
+const INV_TYPE_LABELS: Record<string, { emoji: string; label: string }> = {
+  poupanca:            { emoji: '🐷', label: 'Poupança'              },
+  reserva_emergencia:  { emoji: '🆘', label: 'Reserva de Emergência' },
+  renda_fixa:          { emoji: '📊', label: 'Renda Fixa'            },
+  acoes:               { emoji: '📈', label: 'Ações'                 },
+  fundos_imobiliarios: { emoji: '🏢', label: 'Fundos Imobiliários'   },
+  cripto:              { emoji: '₿',  label: 'Criptomoedas'          },
+  imovel:              { emoji: '🏠', label: 'Imóvel'                },
+  consorcio:           { emoji: '🤝', label: 'Consórcio'             },
+  veiculo:             { emoji: '🚗', label: 'Veículo'               },
+  previdencia:         { emoji: '🏦', label: 'Previdência'           },
+  negocio:             { emoji: '🏪', label: 'Negócio'               },
+  curso:               { emoji: '📚', label: 'Educação'              },
+  equipamento:         { emoji: '🔧', label: 'Equipamento'           },
+  outro:               { emoji: '💰', label: 'Outro'                 },
+}
+
 const STATUS_META: Record<string, { label: string; bg: string; color: string }> = {
   new:         { label: 'Novo',         bg: C.bgSecondary, color: C.textSec    },
   in_progress: { label: 'Em progresso', bg: C.amberBg,     color: C.amberDark  },
@@ -65,6 +84,14 @@ const SOURCE_LABELS: Record<string, string> = {
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
+
+function fmtBRL(v: number) {
+  return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 })
+}
+
+function fmtDateShort(iso: string): string {
+  return new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit' })
+}
 
 function fmtDate(iso: string | null): string {
   if (!iso) return '—'
@@ -203,6 +230,89 @@ export default async function LeadDetailPage({
     interactions = (data ?? []) as Interaction[]
   } catch {
     // Tabela pode não existir em env de desenvolvimento
+  }
+
+  // ── Fetch investimentos — universo separado, NUNCA soma com expenses ────────
+  // Filtro por lead_id + unit_id do lead (dupla proteção cross-unit)
+  // unit_viewer: apenas total do mês para exibir faixa (sem registros individuais)
+  // unit_admin/master: histórico completo + tipos + recorrência
+
+  const today        = new Date().toISOString().split('T')[0]
+  const firstOfMonth = `${today.slice(0, 7)}-01`
+
+  type InvRow = {
+    id: string; amount: number; investment_type: string;
+    description: string | null; investment_date: string; is_recurring: boolean
+  }
+
+  let investments: InvRow[]    = []
+  let investedThisMonth        = 0
+  let totalInvested            = 0
+
+  try {
+    if (canSeeSensitive) {
+      // unit_admin / master: acesso completo aos registros
+      const { data: invRaw } = await supabase
+        .from('investments')
+        .select('id, amount, investment_type, description, investment_date, is_recurring')
+        .eq('lead_id', leadId)
+        .eq('unit_id', lead.unit_id)   // ← unit_id do lead — proteção cross-unit
+        .is('deleted_at', null)
+        .order('investment_date', { ascending: false })
+        .order('created_at',      { ascending: false })
+        .limit(20)
+      investments       = (invRaw ?? []) as InvRow[]
+      totalInvested     = investments.reduce((s, i) => s + i.amount, 0)
+      investedThisMonth = investments
+        .filter(i => i.investment_date >= firstOfMonth)
+        .reduce((s, i) => s + i.amount, 0)
+    } else {
+      // unit_viewer: apenas total do mês para exibir faixa (privacidade)
+      const { data: invRaw } = await supabase
+        .from('investments')
+        .select('amount')
+        .eq('lead_id', leadId)
+        .eq('unit_id', lead.unit_id)
+        .is('deleted_at', null)
+        .gte('investment_date', firstOfMonth)
+        .limit(50)
+      investedThisMonth = (invRaw ?? []).reduce((s: number, i: { amount: number }) => s + i.amount, 0)
+    }
+  } catch { /* silently ignore — não quebra a página */ }
+
+  // Agregados de investimentos
+  const income    = canSeeSensitive ? (lead.monthly_income ?? 0) : 0
+  const investPct = income > 0 && investedThisMonth > 0
+    ? Math.round((investedThisMonth / income) * 100) : 0
+
+  const invTypeTotals: Record<string, number> = {}
+  for (const inv of investments) {
+    invTypeTotals[inv.investment_type] = (invTypeTotals[inv.investment_type] ?? 0) + inv.amount
+  }
+  const topTypeKey  = Object.entries(invTypeTotals).sort((a, b) => b[1] - a[1])[0]?.[0] ?? null
+  const topTypeInfo = topTypeKey ? INV_TYPE_LABELS[topTypeKey] : null
+  const hasRecurring = investments.some(i => i.is_recurring)
+
+  // Insight comercial
+  type InsightDef = { emoji: string; text: string; color: string; bg: string }
+  let insight: InsightDef | null = null
+  if (canSeeSensitive) {
+    const dreamKey = lead.main_dream ?? ''
+    if (investedThisMonth > 0 && income > 0 && investPct >= 10) {
+      insight = { emoji: '🏆', color: C.greenDark, bg: C.greenBg,
+        text: `Boa capacidade de planejamento mensal — ${investPct}% da renda investida este mês.` }
+    } else if (investedThisMonth > 0) {
+      insight = { emoji: '📈', color: C.purpleDeep, bg: C.purpleBg,
+        text: 'Lead demonstra comportamento de construção de patrimônio.' }
+    } else if (income > 0) {
+      insight = { emoji: '💡', color: C.amberDark, bg: C.amberBg,
+        text: 'Renda declarada, mas sem investimentos registrados. Possível oportunidade para iniciar reserva ou compra planejada.' }
+    }
+    // Sonho + patrimônio: oportunidade de produto
+    if (totalInvested > 0 && (dreamKey === 'carro' || dreamKey === 'casa')) {
+      insight = { emoji: '🎯', color: C.amberDark, bg: C.amberBg,
+        text: `Sonha com ${DREAM_LABELS[dreamKey] ?? 'imóvel/veículo'} e já tem patrimônio registrado. Pode receber oportunidade ligada ao sonho principal.` }
+    }
   }
 
   // ── Fetch nome da unidade (master only) ────────────────────────────────────
@@ -466,6 +576,168 @@ export default async function LeadDetailPage({
         )}
       </Section>
 
+      {/* ── Investimentos e Patrimônio ── */}
+      <Section title="Investimentos e Patrimônio" emoji="💚">
+        {!canSeeSensitive ? (
+          /* unit_viewer: apenas resumo de faixa (privacidade) */
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+            <div style={{
+              background: investedThisMonth > 0 ? C.greenBg : C.bgSecondary,
+              borderRadius: 10, padding: '10px 16px',
+            }}>
+              <div style={{ fontSize: 10, color: C.textSec, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.3, marginBottom: 3 }}>
+                Investe este mês
+              </div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: investedThisMonth > 0 ? C.greenDark : C.textSec }}>
+                {investedThisMonth > 0 ? 'Sim ✓' : 'Não'}
+              </div>
+            </div>
+            {investedThisMonth > 0 && (
+              <div style={{ background: C.bgSecondary, borderRadius: 10, padding: '10px 16px' }}>
+                <div style={{ fontSize: 10, color: C.textSec, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.3, marginBottom: 3 }}>
+                  Faixa de investimento
+                </div>
+                <div style={{ fontSize: 14, fontWeight: 700, color: C.textSec }}>
+                  {investedThisMonth < 100 ? 'Baixo' : investedThisMonth < 500 ? 'Médio' : 'Alto'}
+                </div>
+              </div>
+            )}
+          </div>
+        ) : investments.length === 0 ? (
+          /* Estado vazio para admin/master */
+          <div style={{ background: C.bgSecondary, borderRadius: 10, padding: '18px', textAlign: 'center' }}>
+            <p style={{ fontSize: 20, margin: '0 0 6px' }}>💚</p>
+            <p style={{ fontSize: 13, color: C.text, fontWeight: 500, margin: '0 0 4px' }}>
+              Nenhum investimento registrado
+            </p>
+            <p style={{ fontSize: 12, color: C.textSec, margin: 0, lineHeight: 1.5 }}>
+              Este lead ainda não registrou investimentos. Pode ser uma oportunidade
+              para educação financeira ou planejamento patrimonial.
+            </p>
+            {insight && (
+              <div style={{
+                background: insight.bg, borderRadius: 10,
+                padding: '10px 14px', marginTop: 12,
+                display: 'flex', gap: 8, alignItems: 'flex-start', textAlign: 'left',
+              }}>
+                <span style={{ fontSize: 16 }}>{insight.emoji}</span>
+                <p style={{ fontSize: 12, color: insight.color, margin: 0, lineHeight: 1.5 }}>{insight.text}</p>
+              </div>
+            )}
+          </div>
+        ) : (
+          /* Visão completa para unit_admin / master */
+          <>
+            {/* KPI cards */}
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))',
+              gap: 8, marginBottom: 12,
+            }}>
+              <InvKpi
+                label="Investido este mês"
+                value={investedThisMonth > 0 ? fmtBRL(investedThisMonth) : '—'}
+                color={investedThisMonth > 0 ? C.greenDark : C.textTer}
+                bg={investedThisMonth > 0 ? C.greenBg : '#fff'}
+              />
+              <InvKpi
+                label="Total registrado"
+                value={totalInvested > 0 ? fmtBRL(totalInvested) : '—'}
+                color={C.purpleDeep}
+              />
+              <InvKpi
+                label="% da renda"
+                value={investPct > 0 ? `${investPct}%` : '—'}
+                color={investPct >= 10 ? C.greenDark : investPct > 0 ? C.amberDark : C.textTer}
+              />
+              <InvKpi
+                label="Recorrente"
+                value={hasRecurring ? 'Sim ✓' : 'Não'}
+                color={hasRecurring ? C.greenDark : C.textSec}
+                bg={hasRecurring ? C.greenBg : '#fff'}
+              />
+            </div>
+
+            {/* Principal tipo de investimento */}
+            {topTypeInfo && (
+              <div style={{
+                background: C.greenBg, borderRadius: 12,
+                padding: '10px 14px', marginBottom: 10,
+                display: 'flex', alignItems: 'center', gap: 10,
+                border: `0.5px solid ${C.greenDark}20`,
+              }}>
+                <span style={{ fontSize: 22, flexShrink: 0 }}>{topTypeInfo.emoji}</span>
+                <div>
+                  <div style={{ fontSize: 10, color: C.greenDark, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.3, marginBottom: 1 }}>
+                    Principal tipo
+                  </div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: C.greenDark }}>
+                    {topTypeInfo.label}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Insight comercial */}
+            {insight && (
+              <div style={{
+                background: insight.bg, borderRadius: 10,
+                padding: '10px 14px', marginBottom: 12,
+                display: 'flex', gap: 8, alignItems: 'flex-start',
+              }}>
+                <span style={{ fontSize: 16 }}>{insight.emoji}</span>
+                <p style={{ fontSize: 12, color: insight.color, margin: 0, lineHeight: 1.5 }}>
+                  {insight.text}
+                </p>
+              </div>
+            )}
+
+            {/* Histórico de investimentos */}
+            <div style={{ fontSize: 11, fontWeight: 600, color: C.textSec, textTransform: 'uppercase', letterSpacing: 0.3, marginBottom: 8 }}>
+              Histórico recente
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {investments.map(inv => {
+                const typeInfo = INV_TYPE_LABELS[inv.investment_type] ?? { emoji: '💰', label: inv.investment_type }
+                return (
+                  <div key={inv.id} style={{
+                    display: 'flex', gap: 10, alignItems: 'center',
+                    background: C.bgSecondary, borderRadius: 10, padding: '9px 12px',
+                  }}>
+                    <span style={{ fontSize: 18, flexShrink: 0 }}>{typeInfo.emoji}</span>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: C.text }}>
+                        {typeInfo.label}
+                        {inv.is_recurring && (
+                          <span style={{
+                            background: C.greenBg, color: C.greenDark,
+                            fontSize: 9, fontWeight: 700,
+                            padding: '1px 6px', borderRadius: 99, marginLeft: 6,
+                          }}>
+                            RECORRENTE
+                          </span>
+                        )}
+                      </div>
+                      {inv.description && (
+                        <div style={{ fontSize: 11, color: C.textSec, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {inv.description}
+                        </div>
+                      )}
+                      <div style={{ fontSize: 10, color: C.textTer, marginTop: 1 }}>
+                        {fmtDateShort(inv.investment_date)}
+                      </div>
+                    </div>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: C.greenDark, flexShrink: 0 }}>
+                      {fmtBRL(inv.amount)}
+                    </span>
+                  </div>
+                )
+              })}
+            </div>
+          </>
+        )}
+      </Section>
+
       {/* ── Observações (em breve) ── */}
       <Section title="Observações" emoji="📝">
         <div style={{
@@ -531,6 +803,27 @@ function InfoItem({ label, value }: { label: string; value: string }) {
         {label}
       </div>
       <div style={{ fontSize: 13, color: C.text, fontWeight: 500 }}>
+        {value}
+      </div>
+    </div>
+  )
+}
+
+function InvKpi({ label, value, color = C.text, bg = '#fff' }: {
+  label: string; value: string; color?: string; bg?: string
+}) {
+  return (
+    <div style={{
+      background: bg, borderRadius: 10,
+      padding: '10px 12px', border: `0.5px solid ${C.border}`,
+    }}>
+      <div style={{
+        fontSize: 10, color: C.textSec, fontWeight: 600,
+        textTransform: 'uppercase', letterSpacing: 0.3, marginBottom: 4,
+      }}>
+        {label}
+      </div>
+      <div style={{ fontSize: 14, fontWeight: 700, color }}>
         {value}
       </div>
     </div>
