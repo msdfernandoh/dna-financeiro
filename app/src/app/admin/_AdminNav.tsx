@@ -1,16 +1,19 @@
 'use client'
 
 // =============================================================================
-// Nav lateral/horizontal do admin — Client Component (usa usePathname)
+// Nav horizontal do admin — Client Component (usa usePathname)
 // =============================================================================
 
 import { usePathname } from 'next/navigation'
 import { C } from '@/app/components/ui'
 
 const NAV_ITEMS = [
-  { href: '/admin/oportunidades', label: 'Oportunidades', emoji: '🎯', available: true  },
-  { href: '/admin/leads',         label: 'Leads',         emoji: '👥', available: true  },
-  { href: '/admin/perguntas',     label: 'Perguntas',     emoji: '❓', available: false },
+  { href: '/admin',               label: 'Dashboard',    emoji: '📊', available: true,  exact: true  },
+  { href: '/admin/oportunidades', label: 'Oportunidades', emoji: '🎯', available: true,  exact: false },
+  { href: '/admin/leads',         label: 'Leads',         emoji: '👥', available: true,  exact: false },
+  { href: '/admin/campanhas',     label: 'Campanhas',     emoji: '📣', available: false, exact: false },
+  { href: '/admin/perguntas',     label: 'Perguntas',     emoji: '❓', available: false, exact: false },
+  { href: '/admin/relatorios',    label: 'Relatórios',    emoji: '📋', available: false, exact: false },
 ] as const
 
 export function AdminNav() {
@@ -19,7 +22,9 @@ export function AdminNav() {
   return (
     <>
       {NAV_ITEMS.map(item => {
-        const isActive = pathname.startsWith(item.href)
+        const isActive = item.exact
+          ? pathname === item.href
+          : pathname.startsWith(item.href)
 
         if (!item.available) {
           return (
