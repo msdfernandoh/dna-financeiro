@@ -27,6 +27,20 @@ import { createServerSupabaseClient } from '@/lib/supabase/server'
 import type { LeadCreateInput, CreateLeadResult, CreateExpenseResult, CreateInvestmentResult, SaveDnaResult, SaveBusinessProfileState, FormErrors } from '@/types/database'
 
 // ---------------------------------------------------------------------------
+// Helper: formata dígitos de telefone para busca de duplicados
+// Gera variações (dígitos puros + formato exibição) para cobrir
+// tanto cadastros novos (dígitos) quanto legados (formatados).
+// ---------------------------------------------------------------------------
+
+function buildPhoneVariations(digits: string): string[] {
+  if (digits.length < 10) return [digits]
+  const formatted = digits.length === 10
+    ? `(${digits.slice(0,2)}) ${digits.slice(2,6)}-${digits.slice(6)}`
+    : `(${digits.slice(0,2)}) ${digits.slice(2,7)}-${digits.slice(7)}`
+  return [digits, formatted]
+}
+
+// ---------------------------------------------------------------------------
 // Validação dos campos do formulário
 // ---------------------------------------------------------------------------
 
@@ -199,9 +213,30 @@ export async function createLead(
   tracking.utm_content  = raw.utm_content  || null
   tracking.campaign_slug = raw.campaign_slug || null
 
-  // Inserir lead com service_role — unit_id vem do servidor
+  // Bloquear cadastro duplicado na mesma unidade
+  // Busca por dígitos puros e formato exibição para cobrir ambos os formatos históricos
   const supabase = createServerSupabaseClient()
 
+  const phoneVars = buildPhoneVariations(input.phone)
+  const { data: existing } = await supabase
+    .from('leads')
+    .select('id')
+    .eq('unit_id', unitId)
+    .in('phone', phoneVars)
+    .is('deleted_at', null)
+    .limit(1)
+    .single()
+
+  if (existing) {
+    return {
+      success: false,
+      error: 'Este telefone já possui um cadastro nesta cidade.',
+      field: 'phone',
+      duplicate: true,
+    }
+  }
+
+  // Inserir lead com service_role — unit_id vem do servidor
   const { data: lead, error: dbError } = await supabase
     .from('leads')
     .insert({

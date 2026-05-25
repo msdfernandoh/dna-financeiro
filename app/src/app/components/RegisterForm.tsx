@@ -398,6 +398,24 @@ export function RegisterForm({ unit, createLeadAction }: RegisterFormProps) {
                     autoComplete="tel" inputMode="numeric" required style={inputSt} />
                 </Field>
 
+                {/* Botão de acesso — aparece quando o telefone já está cadastrado */}
+                {state?.success === false && state.duplicate && (
+                  <div style={{ marginTop: -6, marginBottom: 14, textAlign: 'center' }}>
+                    <a
+                      href={`/${unit.slug}/entrar`}
+                      style={{
+                        display: 'inline-flex', alignItems: 'center', gap: 6,
+                        fontSize: 13, fontWeight: 600, color: C.purpleDeep,
+                        background: C.purpleBg, textDecoration: 'none',
+                        padding: '10px 18px', borderRadius: 10,
+                        border: `1.5px solid ${C.purple}40`,
+                      }}
+                    >
+                      🔑 Entrar na minha conta →
+                    </a>
+                  </div>
+                )}
+
                 <Field label="Sua cidade" error={state?.success === false && state.field === 'city' ? state.error : undefined}>
                   <input name="city" type="text" placeholder="Ex: Sinop"
                     autoComplete="address-level2" defaultValue={unit.city}

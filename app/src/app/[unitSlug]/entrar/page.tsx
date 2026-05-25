@@ -12,8 +12,8 @@
 import { cookies }   from 'next/headers'
 import { notFound }  from 'next/navigation'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
-import { entrarComTelefone } from './actions'
-import { EntrarForm }        from './EntrarForm'
+import { solicitarCodigo, verificarCodigo } from './actions'
+import { EntrarForm }                       from './EntrarForm'
 import { C }                 from '@/app/components/ui'
 import { redirect }          from 'next/navigation'
 
@@ -58,8 +58,9 @@ export default async function EntrarPage({ params }: Props) {
 
   const primary = unit.primary_color ? `#${unit.primary_color.replace('#', '')}` : C.purple
 
-  // Bind do unitSlug na action
-  const boundAction = entrarComTelefone.bind(null, unitSlug)
+  // Bind do unitSlug em ambos os actions — nunca expostos ao browser
+  const boundSolicitar = solicitarCodigo.bind(null, unitSlug)
+  const boundVerificar = verificarCodigo.bind(null, unitSlug)
 
   return (
     <div style={{
@@ -116,9 +117,9 @@ export default async function EntrarPage({ params }: Props) {
           boxShadow: '0 4px 24px rgba(0,0,0,0.06)',
         }}>
           <EntrarForm
-            action={boundAction}
+            solicitarAction={boundSolicitar}
+            verificarAction={boundVerificar}
             unitSlug={unitSlug}
-            city={unit.city}
           />
         </div>
 

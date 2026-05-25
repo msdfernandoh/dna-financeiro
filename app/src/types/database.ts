@@ -120,7 +120,7 @@ export interface LeadTrackingContext {
 
 export type CreateLeadResult =
   | { success: true;  leadToken: string }
-  | { success: false; error: string; field?: string }
+  | { success: false; error: string; field?: string; duplicate?: boolean }
 
 // ---------------------------------------------------------------------------
 // Resposta da Server Action de criação de despesa
