@@ -108,7 +108,7 @@ export function ExpenseForm({ unitSlug, today, createExpenseAction }: Props) {
             {/* Input de valor — exibe R$ 1.000,00 em tempo real */}
             <div style={{ position: 'relative' }}>
               <input
-                type="tel"
+                type="text"
                 inputMode="numeric"
                 value={amountDigits ? `R$ ${amountDisplay}` : ''}
                 onChange={e => setAmount(e.target.value.replace(/\D/g, '').slice(0, 9))}

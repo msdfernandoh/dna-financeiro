@@ -19,14 +19,26 @@ export type EntrarResult =
   | { success: true }
   | { success: false; error: string }
 
-// Normaliza telefone para o mesmo formato usado no cadastro
+// Formata dígitos de telefone BR para exibição
 // Ex: "65999991234" → "(65) 99999-1234"
 // Ex: "6533334444"  → "(65) 3333-4444"
-function normalizePhone(raw: string): string {
-  const d = raw.replace(/\D/g, '').slice(0, 11)
+function formatPhone(d: string): string {
   if (d.length < 10) return d
   if (d.length === 10) return `(${d.slice(0,2)}) ${d.slice(2,6)}-${d.slice(6)}`
   return `(${d.slice(0,2)}) ${d.slice(2,7)}-${d.slice(7)}`
+}
+
+// Gera todas as variações de formato para busca no banco
+// O cadastro salva apenas dígitos (ex: "65999991234"), mas versões antigas
+// ou digitações diferentes podem gerar formatos variados.
+function phoneVariations(raw: string): string[] {
+  const digits = raw.replace(/\D/g, '').slice(0, 13)
+  // Remove DDI 55 se presente (ex: "5565999991234" → "65999991234")
+  const d = digits.length >= 12 && digits.startsWith('55') ? digits.slice(2) : digits
+  return [...new Set([
+    d,             // dígitos puros — formato atual do cadastro
+    formatPhone(d),// formato exibição — compatibilidade com cadastros legados
+  ])]
 }
 
 export async function entrarComTelefone(
@@ -37,12 +49,14 @@ export async function entrarComTelefone(
 
   const rawPhone = formData.get('phone')?.toString().trim() ?? ''
   const digits   = rawPhone.replace(/\D/g, '')
+  // Aceita 10 ou 11 dígitos locais, ou 12-13 com DDI 55
+  const localDigits = digits.length >= 12 && digits.startsWith('55') ? digits.slice(2) : digits
 
-  if (digits.length < 10 || digits.length > 11) {
+  if (localDigits.length < 10 || localDigits.length > 11) {
     return { success: false, error: 'Informe o telefone com DDD (ex: 65 99999-1234).' }
   }
 
-  const formattedPhone = normalizePhone(rawPhone)
+  const variants = phoneVariations(rawPhone)
 
   const supabase = createServerSupabaseClient()
 
@@ -60,11 +74,12 @@ export async function entrarComTelefone(
   }
 
   // Busca lead pelo telefone + unidade — sem expor lead_id ao client
+  // Testa múltiplas variações de formato (dígitos puros e formato exibição)
   const { data: lead } = await supabase
     .from('leads')
     .select('id')
     .eq('unit_slug', unitSlug)
-    .eq('phone', formattedPhone)
+    .in('phone', variants)
     .is('deleted_at', null)
     .order('created_at', { ascending: false })
     .limit(1)

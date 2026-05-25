@@ -156,7 +156,11 @@ function SelectInput({ name, label, options, defaultValue }: {
 function MoneyInput({ name, label, placeholder, defaultValue }: {
   name: string; label: string; placeholder?: string; defaultValue?: number | null
 }) {
-  const displayValue = defaultValue != null ? String(defaultValue) : ''
+  // Exibe com vírgula como separador decimal (padrão BR)
+  // O Server Action parseMoney() já converte "1.500,50" → 1500.5
+  const displayValue = defaultValue != null
+    ? String(defaultValue).replace('.', ',')
+    : ''
   return (
     <div style={{ marginBottom: 14 }}>
       <FieldLabel>{label}</FieldLabel>
@@ -166,12 +170,11 @@ function MoneyInput({ name, label, placeholder, defaultValue }: {
           fontSize: 12, color: C.textSec, fontWeight: 600, pointerEvents: 'none',
         }}>R$</span>
         <input
-          type="number"
+          type="text"
+          inputMode="decimal"
           name={name}
           placeholder={placeholder ?? '0,00'}
           defaultValue={displayValue}
-          min="0"
-          step="0.01"
           style={{
             width: '100%', boxSizing: 'border-box',
             border: `1.5px solid ${C.border}`, borderRadius: 10,
