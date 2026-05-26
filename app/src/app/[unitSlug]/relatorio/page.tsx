@@ -15,6 +15,10 @@ import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { C } from '@/app/components/ui'
 import { LeadBottomNav }      from '@/app/components/LeadBottomNav'
 import { PrintReportButton }  from './PrintReportButton'
+import {
+  calculateDreamPlan, formatDreamSubtype, fmtBRLPlan,
+  GOAL_STATUS_META,
+} from '@/lib/dreamPlan'
 
 interface Props {
   params: Promise<{ unitSlug: string }>
@@ -481,6 +485,30 @@ export default async function RelatorioPage({ params }: Props) {
     } catch { /* sem perfil ainda */ }
   }
 
+  // ── 6c. Sonho primário (graceful — leads antigos podem não ter) ───────────
+  type PrimaryDream = {
+    dream_type: string
+    dream_subtype: string | null
+    target_amount: number
+    target_label: string | null
+  }
+  let primaryDream: PrimaryDream | null = null
+  try {
+    const { data: pdData } = await supabase
+      .from('dreams')
+      .select('dream_type, dream_subtype, target_amount, target_label')
+      .eq('lead_id', leadId)
+      .eq('unit_id', lead.unit_id)
+      .eq('is_primary', true)
+      .limit(1)
+      .maybeSingle()
+    primaryDream = pdData
+  } catch { /* lead antigo sem dreams */ }
+
+  const dreamPlan = primaryDream
+    ? calculateDreamPlan(primaryDream.target_amount, sobra)
+    : null
+
   const primary = unit.primary_color ? `#${unit.primary_color.replace('#', '')}` : C.purple
   const generated = fmtDate(new Date())
 
@@ -850,6 +878,74 @@ export default async function RelatorioPage({ params }: Props) {
               <strong>Maior barreira identificada:</strong>{' '}
               {BARREIRA_LABELS[barreira] ?? barreira}
             </p>
+          )}
+
+          {/* ── Plano de acumulação (só quando tem valor cadastrado) ── */}
+          {dreamPlan && primaryDream && (
+            <div style={{ marginTop: 14 }}>
+              <div style={{
+                background: 'rgba(255,255,255,0.7)', borderRadius: 12,
+                padding: '12px', marginBottom: 8,
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              }}>
+                <div>
+                  <p style={{ margin: 0, fontSize: 10, color: C.amberDark, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                    Meta de valor
+                  </p>
+                  <p style={{ margin: 0, fontSize: 18, fontWeight: 700, color: C.amberDark }}>
+                    {primaryDream.target_label ?? fmtBRLPlan(primaryDream.target_amount)}
+                  </p>
+                </div>
+                {formatDreamSubtype(primaryDream.dream_subtype) && (
+                  <span style={{
+                    background: C.amber, color: '#fff',
+                    fontSize: 11, fontWeight: 600, padding: '4px 10px', borderRadius: 99,
+                  }}>
+                    {formatDreamSubtype(primaryDream.dream_subtype)}
+                  </span>
+                )}
+              </div>
+
+              <p style={{ margin: '0 0 8px', fontSize: 11, fontWeight: 600, color: '#854F0B' }}>
+                Simulação de acumulação com sua sobra atual ({fmtBRLPlan(sobra)}/mês)
+              </p>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, marginBottom: 8 }}>
+                {([
+                  { label: '12 meses', em: dreamPlan.em12, need: dreamPlan.need12, status: dreamPlan.status12 },
+                  { label: '24 meses', em: dreamPlan.em24, need: dreamPlan.need24, status: dreamPlan.status24 },
+                  { label: '36 meses', em: dreamPlan.em36, need: dreamPlan.need36, status: dreamPlan.status36 },
+                  { label: '60 meses', em: dreamPlan.em60, need: dreamPlan.need60, status: dreamPlan.status60 },
+                ] as const).map(({ label, em, need, status }) => {
+                  const meta = GOAL_STATUS_META[status]
+                  return (
+                    <div key={label} style={{
+                      background: meta.bg, borderRadius: 10, padding: '8px 10px',
+                    }}>
+                      <p style={{ fontSize: 9, color: meta.color, fontWeight: 600, margin: '0 0 1px' }}>{label}</p>
+                      <p style={{ fontSize: 14, fontWeight: 700, color: meta.color, margin: '0 0 1px' }}>
+                        {fmtBRLPlan(em)}
+                      </p>
+                      <p style={{ fontSize: 9, color: meta.color, opacity: 0.8, margin: 0 }}>
+                        meta: {fmtBRLPlan(need)}/mês
+                      </p>
+                    </div>
+                  )
+                })}
+              </div>
+
+              {dreamPlan.bestMonths !== null && (
+                <div style={{
+                  background: 'rgba(255,255,255,0.7)', borderRadius: 10,
+                  padding: '8px 12px', textAlign: 'center',
+                }}>
+                  <span style={{ fontSize: 12, color: C.amberDark }}>
+                    Com a sobra atual, você atinge a meta em{' '}
+                    <strong>{dreamPlan.bestMonths} meses</strong>
+                  </span>
+                </div>
+              )}
+            </div>
           )}
         </div>
 

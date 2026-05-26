@@ -16,6 +16,7 @@ import { requireAdmin }               from '@/lib/supabase/admin'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { AdminShell }                 from '../_AdminShell'
 import { C }                          from '@/app/components/ui'
+import { fmtBRLPlan }                 from '@/lib/dreamPlan'
 
 // ── Constantes ────────────────────────────────────────────────────────────────
 
@@ -164,6 +165,27 @@ export default async function AdminLeadsPage({ searchParams }: Props) {
       // Cruza apenas com leads já autorizados (proteção cross-unit adicional)
       if (allLeadIds.has(inv.lead_id)) {
         investMap[inv.lead_id] = (investMap[inv.lead_id] ?? 0) + inv.amount
+      }
+    }
+  } catch { /* silently ignore — não quebra a listagem */ }
+
+  // ── Sonhos primários — batch query (evita N+1) ────────────────────────────
+  // Mesma estratégia do investMap: IN(lead_ids) filtrado pelos leads autorizados
+  const dreamMap: Record<string, { target_label: string | null; target_amount: number }> = {}
+  try {
+    const allLeadIds = allLeads.map(l => l.id)
+    if (allLeadIds.length > 0) {
+      let dQ = supabase
+        .from('dreams')
+        .select('lead_id, target_label, target_amount')
+        .in('lead_id', allLeadIds)
+        .eq('is_primary', true)
+      if (session.role !== 'master') {
+        dQ = dQ.eq('unit_id', session.unitId!)
+      }
+      const { data: dreamsRaw } = await dQ.limit(5000)
+      for (const d of dreamsRaw ?? []) {
+        dreamMap[d.lead_id] = { target_label: d.target_label, target_amount: d.target_amount }
       }
     }
   } catch { /* silently ignore — não quebra a listagem */ }
@@ -388,9 +410,13 @@ export default async function AdminLeadsPage({ searchParams }: Props) {
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {leads.map(lead => {
-            const sMeta     = STATUS_META[lead.status] ?? STATUS_META.new
-            const dreamLbl  = DREAM_LABELS[lead.main_dream ?? ''] ?? lead.main_dream ?? null
-            const unitName  = unitNames[lead.unit_id]
+            const sMeta       = STATUS_META[lead.status] ?? STATUS_META.new
+            const dreamLbl    = DREAM_LABELS[lead.main_dream ?? ''] ?? lead.main_dream ?? null
+            const unitName    = unitNames[lead.unit_id]
+            const dreamRecord = dreamMap[lead.id] ?? null
+            const dreamValue  = dreamRecord
+              ? (dreamRecord.target_label ?? fmtBRLPlan(dreamRecord.target_amount))
+              : null
 
             return (
               <div key={lead.id} style={{
@@ -476,6 +502,14 @@ export default async function AdminLeadsPage({ searchParams }: Props) {
                         fontSize: 10, padding: '2px 8px', borderRadius: 99, fontWeight: 500,
                       }}>
                         🌟 {dreamLbl}
+                      </span>
+                    )}
+                    {dreamValue && (
+                      <span style={{
+                        background: C.amber, color: '#fff',
+                        fontSize: 10, padding: '2px 8px', borderRadius: 99, fontWeight: 600,
+                      }}>
+                        🎯 {dreamValue}
                       </span>
                     )}
                     <div style={{ display: 'flex', alignItems: 'center', gap: 5, flex: 1, minWidth: 80 }}>

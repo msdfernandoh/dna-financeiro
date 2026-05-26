@@ -3,6 +3,10 @@ import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { C } from '@/app/components/ui'
+import {
+  calculateDreamPlan, formatDreamSubtype, fmtBRLPlan,
+  GOAL_STATUS_META, type DreamPlan,
+} from '@/lib/dreamPlan'
 
 // ── Dados dos sonhos ──────────────────────────────────────────────────────────
 
@@ -117,13 +121,14 @@ export default async function DiagnosticoPage({ params }: Props) {
     monthly_income: number | null
     monthly_expenses: number | null
     city: string | null
+    unit_id: string
   }
 
   try {
     const supabase = createServerSupabaseClient()
     const { data, error } = await supabase
       .from('leads')
-      .select('name, main_dream, monthly_income, monthly_expenses, city')
+      .select('name, main_dream, monthly_income, monthly_expenses, city, unit_id')
       .eq('id', leadId)
       .eq('unit_slug', unitSlug)
       .is('deleted_at', null)
@@ -135,6 +140,26 @@ export default async function DiagnosticoPage({ params }: Props) {
     redirect(`/${unitSlug}`)
   }
 
+  // 3b. Buscar sonho primário (graceful — leads antigos podem não ter registro)
+  type PrimaryDream = {
+    dream_type: string
+    dream_subtype: string | null
+    target_amount: number
+    target_label: string | null
+  }
+  let primaryDream: PrimaryDream | null = null
+  try {
+    const { data } = await createServerSupabaseClient()
+      .from('dreams')
+      .select('dream_type, dream_subtype, target_amount, target_label')
+      .eq('lead_id', leadId)
+      .eq('unit_id', lead.unit_id)
+      .eq('is_primary', true)
+      .limit(1)
+      .maybeSingle()
+    primaryDream = data
+  } catch { /* lead antigo sem dreams — ignora */ }
+
   // 4. Cálculos financeiros
   const income       = lead.monthly_income   ?? 0
   const expenses     = lead.monthly_expenses ?? 0
@@ -144,12 +169,22 @@ export default async function DiagnosticoPage({ params }: Props) {
   const expensesPct  = income > 0 ? (expenses / income) * 100 : 0
 
   // 5. Perfil e recomendação
-  const perfil       = calcPerfil(sobra, income)
-  const dream        = lead.main_dream ?? 'outro'
-  const dreamInfo    = DREAMS[dream] ?? DREAMS.outro
+  const perfil    = calcPerfil(sobra, income)
+  const dream     = (primaryDream?.dream_type ?? lead.main_dream) ?? 'outro'
+  const dreamInfo = DREAMS[dream] ?? DREAMS.outro
+
+  // Plano do sonho (null se não tem sonho cadastrado ou sobra inválida)
+  const plan: DreamPlan | null = primaryDream
+    ? calculateDreamPlan(primaryDream.target_amount, sobra)
+    : null
+
   const recomendacao = sobra < 0
     ? 'Antes de acelerar seu sonho, vamos encontrar pequenos ajustes para recuperar o equilíbrio financeiro.'
-    : (RECOMENDACOES[dream] ?? RECOMENDACOES.outro)
+    : primaryDream && plan
+      ? plan.bestMonths !== null && plan.bestMonths <= 60
+        ? `Com sua sobra atual de ${fmtBRLPlan(sobra)}/mês, você atinge ${fmtBRLPlan(primaryDream.target_amount)} em ${plan.bestMonths} meses — continue no plano!`
+        : `Seu sonho de ${fmtBRLPlan(primaryDream.target_amount)} exige reforço na poupança. Vamos montar um plano juntos.`
+      : (RECOMENDACOES[dream] ?? RECOMENDACOES.outro)
 
   const firstName = lead.name.split(' ')[0]
 
@@ -226,39 +261,116 @@ export default async function DiagnosticoPage({ params }: Props) {
         </div>
 
         {/* ── Card do sonho ── */}
-        <div style={{
-          background: '#fff', borderRadius: 16,
-          padding: '14px 16px', marginBottom: 10,
-          border: `0.5px solid ${C.border}`,
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+        {plan ? (
+          /* ── Versão rica: sonho com valor cadastrado ── */
+          <div style={{
+            background: '#fff', borderRadius: 16,
+            padding: '14px 16px', marginBottom: 10,
+            border: `0.5px solid ${C.border}`,
+          }}>
+            {/* cabeçalho */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+              <div style={{
+                background: C.amberBg, borderRadius: 10,
+                width: 36, height: 36, flexShrink: 0,
+                display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18,
+              }}>{dreamInfo.emoji}</div>
+              <div style={{ flex: 1 }}>
+                <p style={{ fontSize: 13, fontWeight: 500, margin: 0, color: C.text }}>
+                  {dreamInfo.label}
+                </p>
+                {formatDreamSubtype(primaryDream!.dream_subtype) && (
+                  <p style={{ fontSize: 11, color: C.textSec, margin: '2px 0 0' }}>
+                    {formatDreamSubtype(primaryDream!.dream_subtype)}
+                  </p>
+                )}
+              </div>
+              <span style={{
+                background: C.amberBg, color: C.amberDark,
+                fontSize: 13, fontWeight: 600, padding: '4px 10px', borderRadius: 99,
+                whiteSpace: 'nowrap',
+              }}>
+                {primaryDream!.target_label ?? fmtBRLPlan(primaryDream!.target_amount)}
+              </span>
+            </div>
+
+            {/* simulação 4 prazos */}
+            <p style={{ fontSize: 11, fontWeight: 500, color: C.textSec, margin: '0 0 8px' }}>
+              Simulação de acumulação com sua sobra atual
+            </p>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, marginBottom: 10 }}>
+              {([
+                { label: '12 meses', em: plan.em12, need: plan.need12, status: plan.status12 },
+                { label: '24 meses', em: plan.em24, need: plan.need24, status: plan.status24 },
+                { label: '36 meses', em: plan.em36, need: plan.need36, status: plan.status36 },
+                { label: '60 meses', em: plan.em60, need: plan.need60, status: plan.status60 },
+              ] as const).map(({ label, em, need, status }) => {
+                const meta = GOAL_STATUS_META[status]
+                return (
+                  <div key={label} style={{
+                    background: meta.bg, borderRadius: 10,
+                    padding: '8px 10px',
+                  }}>
+                    <p style={{ fontSize: 10, color: meta.color, fontWeight: 600, margin: '0 0 2px' }}>{label}</p>
+                    <p style={{ fontSize: 14, fontWeight: 700, color: meta.color, margin: '0 0 1px' }}>
+                      {fmtBRLPlan(em)}
+                    </p>
+                    <p style={{ fontSize: 9, color: meta.color, margin: 0, opacity: 0.8 }}>
+                      precisa: {fmtBRLPlan(need)}/mês
+                    </p>
+                  </div>
+                )
+              })}
+            </div>
+
+            {/* prazo realista */}
+            {plan.bestMonths !== null && (
+              <div style={{
+                background: C.purpleBg, borderRadius: 10,
+                padding: '8px 12px', textAlign: 'center',
+              }}>
+                <span style={{ fontSize: 12, color: C.purpleDeep }}>
+                  Prazo mais realista com a sobra atual:{' '}
+                  <strong>{plan.bestMonths} meses</strong>
+                </span>
+              </div>
+            )}
+          </div>
+        ) : (
+          /* ── Versão simples: sem valor de meta cadastrado ── */
+          <div style={{
+            background: '#fff', borderRadius: 16,
+            padding: '14px 16px', marginBottom: 10,
+            border: `0.5px solid ${C.border}`,
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+              <div style={{
+                background: C.amberBg, borderRadius: 10,
+                width: 36, height: 36, flexShrink: 0,
+                display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18,
+              }}>{dreamInfo.emoji}</div>
+              <div>
+                <p style={{ fontSize: 13, fontWeight: 500, margin: 0, color: C.text }}>
+                  Seu sonho: {dreamInfo.label}
+                </p>
+                <p style={{ fontSize: 11, color: C.textSec, margin: '2px 0 0' }}>
+                  Continue para definir sua meta de valor
+                </p>
+              </div>
+            </div>
             <div style={{
-              background: C.amberBg, borderRadius: 10,
-              width: 36, height: 36, flexShrink: 0,
-              display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18,
-            }}>{dreamInfo.emoji}</div>
-            <div>
-              <p style={{ fontSize: 13, fontWeight: 500, margin: 0, color: C.text }}>
-                Seu sonho: {dreamInfo.label}
-              </p>
-              <p style={{ fontSize: 11, color: C.textSec, margin: '2px 0 0' }}>
-                Continue para definir sua meta de valor
-              </p>
+              background: 'rgba(0,0,0,0.06)', borderRadius: 99, height: 6, overflow: 'hidden', marginBottom: 6,
+            }}>
+              <div style={{
+                background: C.amber, height: '100%', borderRadius: 99, width: '8%',
+              }} />
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+              <span style={{ fontSize: 11, color: C.textSec }}>Diagnóstico inicial completo</span>
+              <span style={{ fontSize: 11, color: C.amberDark, fontWeight: 500 }}>Próximo: definir meta</span>
             </div>
           </div>
-          {/* barra de progresso indicativa */}
-          <div style={{
-            background: 'rgba(0,0,0,0.06)', borderRadius: 99, height: 6, overflow: 'hidden', marginBottom: 6,
-          }}>
-            <div style={{
-              background: C.amber, height: '100%', borderRadius: 99, width: '8%', transition: 'width 0.3s',
-            }} />
-          </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-            <span style={{ fontSize: 11, color: C.textSec }}>Diagnóstico inicial completo</span>
-            <span style={{ fontSize: 11, color: C.amberDark, fontWeight: 500 }}>Próximo: definir meta</span>
-          </div>
-        </div>
+        )}
 
         {/* ── Renda e Despesas ── */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 10 }}>

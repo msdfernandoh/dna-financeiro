@@ -18,6 +18,10 @@ import { requireAdmin }               from '@/lib/supabase/admin'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { AdminShell }                 from '../../_AdminShell'
 import { C }                          from '@/app/components/ui'
+import {
+  calculateDreamPlan, formatDreamSubtype, fmtBRLPlan,
+  GOAL_STATUS_META,
+} from '@/lib/dreamPlan'
 
 // ── Constantes ────────────────────────────────────────────────────────────────
 
@@ -460,7 +464,9 @@ export default async function LeadDetailPage({
   } catch { /* silently ignore */ }
 
   // Agregados de investimentos
-  const income    = canSeeSensitive ? (lead.monthly_income ?? 0) : 0
+  const income    = canSeeSensitive ? (lead.monthly_income  ?? 0) : 0
+  const expenses  = canSeeSensitive ? (lead.monthly_expenses ?? 0) : 0
+  const sobra     = income - expenses
   const investPct = income > 0 && investedThisMonth > 0
     ? Math.round((investedThisMonth / income) * 100) : 0
 
@@ -487,6 +493,30 @@ export default async function LeadDetailPage({
       bizProfile = bizData as BizProfileAdmin | null
     } catch { /* sem perfil empresarial */ }
   }
+
+  // ── 5c. Sonho primário (graceful — leads antigos podem não ter) ───────────
+  type PrimaryDream = {
+    dream_type: string
+    dream_subtype: string | null
+    target_amount: number
+    target_label: string | null
+  }
+  let primaryDream: PrimaryDream | null = null
+  try {
+    const { data: pdData } = await supabase
+      .from('dreams')
+      .select('dream_type, dream_subtype, target_amount, target_label')
+      .eq('lead_id', leadId)
+      .eq('unit_id', lead.unit_id)
+      .eq('is_primary', true)
+      .limit(1)
+      .maybeSingle()
+    primaryDream = pdData
+  } catch { /* lead antigo sem dreams */ }
+
+  const adminPlan = primaryDream && canSeeSensitive
+    ? calculateDreamPlan(primaryDream.target_amount, sobra)
+    : null
 
   // ── 6. Nome da unidade (master only) ──────────────────────────────────────
   let unitName = ''
@@ -779,6 +809,75 @@ export default async function LeadDetailPage({
             </p>
           </div>
         </div>
+
+        {/* Plano do sonho (somente se lead tem valor cadastrado e perfil sensível) */}
+        {adminPlan && primaryDream && (
+          <div style={{
+            background: C.amberBg, borderRadius: 12,
+            padding: '12px 14px', marginTop: 10,
+            border: `0.5px solid ${C.amber}40`,
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+              <div>
+                <div style={{ fontSize: 10, color: C.amberDark, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.3, marginBottom: 2 }}>
+                  Plano do sonho principal
+                </div>
+                <div style={{ fontSize: 16, fontWeight: 700, color: C.amberDark }}>
+                  {primaryDream.target_label ?? fmtBRLPlan(primaryDream.target_amount)}
+                </div>
+              </div>
+              {formatDreamSubtype(primaryDream.dream_subtype) && (
+                <span style={{
+                  background: C.amber, color: '#fff',
+                  fontSize: 10, fontWeight: 600, padding: '3px 9px', borderRadius: 99,
+                }}>
+                  {formatDreamSubtype(primaryDream.dream_subtype)}
+                </span>
+              )}
+            </div>
+
+            {sobra > 0 && (
+              <p style={{ fontSize: 11, color: '#854F0B', margin: '0 0 8px' }}>
+                Sobra atual: <strong>{fmtBRLPlan(sobra)}/mês</strong>
+              </p>
+            )}
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 5, marginBottom: 8 }}>
+              {([
+                { label: '12 meses', em: adminPlan.em12, need: adminPlan.need12, status: adminPlan.status12 },
+                { label: '24 meses', em: adminPlan.em24, need: adminPlan.need24, status: adminPlan.status24 },
+                { label: '36 meses', em: adminPlan.em36, need: adminPlan.need36, status: adminPlan.status36 },
+                { label: '60 meses', em: adminPlan.em60, need: adminPlan.need60, status: adminPlan.status60 },
+              ] as const).map(({ label, em, need, status }) => {
+                const meta = GOAL_STATUS_META[status]
+                return (
+                  <div key={label} style={{
+                    background: meta.bg, borderRadius: 8, padding: '6px 9px',
+                  }}>
+                    <p style={{ fontSize: 9, color: meta.color, fontWeight: 600, margin: '0 0 1px' }}>{label}</p>
+                    <p style={{ fontSize: 13, fontWeight: 700, color: meta.color, margin: '0 0 1px' }}>
+                      {fmtBRLPlan(em)}
+                    </p>
+                    <p style={{ fontSize: 9, color: meta.color, opacity: 0.8, margin: 0 }}>
+                      meta: {fmtBRLPlan(need)}/mês
+                    </p>
+                  </div>
+                )
+              })}
+            </div>
+
+            {adminPlan.bestMonths !== null && (
+              <div style={{
+                background: 'rgba(255,255,255,0.6)', borderRadius: 8,
+                padding: '6px 10px', textAlign: 'center',
+              }}>
+                <span style={{ fontSize: 11, color: C.amberDark }}>
+                  Prazo estimado com sobra atual: <strong>{adminPlan.bestMonths} meses</strong>
+                </span>
+              </div>
+            )}
+          </div>
+        )}
       </Section>
 
       {/* ════════════════════════════════════════════

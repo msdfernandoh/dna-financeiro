@@ -5,6 +5,10 @@ import { C } from '@/app/components/ui'
 import { PerguntaDia }       from './PerguntaDia'
 import { FeaturedOppCard }   from './_FeaturedOppCard'
 import { LeadBottomNav }     from '@/app/components/LeadBottomNav'
+import {
+  calculateDreamPlan, formatDreamSubtype, fmtBRLPlan,
+  GOAL_STATUS_META,
+} from '@/lib/dreamPlan'
 
 // ── Categorias de despesa ─────────────────────────────────────────────────────
 
@@ -148,6 +152,26 @@ export default async function PainelPage({ params }: Props) {
     if (bizTags.length === 0) bizTags = ['empresario']
   }
 
+  // 3d. Buscar sonho primário (graceful — leads antigos podem não ter)
+  type PrimaryDream = {
+    dream_type: string
+    dream_subtype: string | null
+    target_amount: number
+    target_label: string | null
+  }
+  let primaryDream: PrimaryDream | null = null
+  try {
+    const { data } = await createServerSupabaseClient()
+      .from('dreams')
+      .select('dream_type, dream_subtype, target_amount, target_label')
+      .eq('lead_id', leadId)
+      .eq('unit_id', lead.unit_id)
+      .eq('is_primary', true)
+      .limit(1)
+      .maybeSingle()
+    primaryDream = data
+  } catch { /* lead antigo sem dreams */ }
+
   // 4. Cálculos financeiros (unit_id usado apenas no servidor para queries)
   const income       = lead.monthly_income   ?? 0
   const expenses     = lead.monthly_expenses ?? 0
@@ -155,8 +179,10 @@ export default async function PainelPage({ params }: Props) {
   const limiteDiario = sobra > 0 ? sobra / 30 : 0
   const dnaProgress  = lead.dna_progress ?? 0
 
-  const dream     = lead.main_dream ?? 'outro'
+  const dream     = (primaryDream?.dream_type ?? lead.main_dream) ?? 'outro'
   const dreamInfo = DREAMS[dream] ?? DREAMS.outro
+
+  const plan = primaryDream ? calculateDreamPlan(primaryDream.target_amount, sobra) : null
   const firstName = lead.name.split(' ')[0]
   const avatar    = initials(lead.name)
 
@@ -648,6 +674,7 @@ export default async function PainelPage({ params }: Props) {
           padding: '14px 16px', marginBottom: 10,
           border: `0.5px solid ${C.border}`,
         }}>
+          {/* cabeçalho */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
             <div style={{
               background: C.amberBg, borderRadius: 10,
@@ -659,22 +686,98 @@ export default async function PainelPage({ params }: Props) {
               <p style={{ fontSize: 14, fontWeight: 500, color: C.text, margin: '2px 0 0' }}>
                 {dreamInfo.label}
               </p>
+              {primaryDream && formatDreamSubtype(primaryDream.dream_subtype) && (
+                <p style={{ fontSize: 11, color: C.textSec, margin: '1px 0 0' }}>
+                  {formatDreamSubtype(primaryDream.dream_subtype)}
+                </p>
+              )}
             </div>
-            <div style={{ textAlign: 'right', flexShrink: 0 }}>
-              <p style={{ fontSize: 11, color: C.textSec, margin: 0 }}>Faltam</p>
-              <p style={{ fontSize: 13, fontWeight: 500, color: C.amberDark, margin: 0 }}>
-                definir meta
+            {plan ? (
+              <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                <p style={{ fontSize: 11, color: C.textSec, margin: 0 }}>Meta</p>
+                <p style={{ fontSize: 13, fontWeight: 600, color: C.amberDark, margin: 0 }}>
+                  {primaryDream!.target_label ?? fmtBRLPlan(primaryDream!.target_amount)}
+                </p>
+              </div>
+            ) : (
+              <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                <p style={{ fontSize: 11, color: C.textSec, margin: 0 }}>Faltam</p>
+                <p style={{ fontSize: 13, fontWeight: 500, color: C.amberDark, margin: 0 }}>
+                  definir meta
+                </p>
+              </div>
+            )}
+          </div>
+
+          {plan ? (
+            <>
+              {/* barra de capacidade */}
+              {sobra > 0 && (
+                <>
+                  <div style={{
+                    background: 'rgba(0,0,0,0.06)', borderRadius: 99, height: 5, overflow: 'hidden', marginBottom: 4,
+                  }}>
+                    {(() => {
+                      const bestStatus = plan.status12 === 'confortavel' ? plan.status12
+                        : plan.status24 === 'confortavel' ? plan.status24
+                        : plan.status36 === 'confortavel' ? plan.status36
+                        : plan.status60
+                      const meta = GOAL_STATUS_META[bestStatus]
+                      const barW = Math.min(Math.round((sobra / plan.need12) * 100), 100)
+                      return <div style={{ background: meta.color, height: '100%', borderRadius: 99, width: `${Math.max(barW, 3)}%` }} />
+                    })()}
+                  </div>
+                  <p style={{ fontSize: 10, color: C.textSec, margin: '0 0 8px' }}>
+                    Capacidade mensal: {fmtBRLPlan(sobra)} de {fmtBRLPlan(plan.need12)}/mês (meta 12 meses)
+                  </p>
+                </>
+              )}
+
+              {/* grade dos 4 prazos */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 5, marginBottom: 8 }}>
+                {([
+                  { label: '12 meses', em: plan.em12, status: plan.status12 },
+                  { label: '24 meses', em: plan.em24, status: plan.status24 },
+                  { label: '36 meses', em: plan.em36, status: plan.status36 },
+                  { label: '60 meses', em: plan.em60, status: plan.status60 },
+                ] as const).map(({ label, em, status }) => {
+                  const meta = GOAL_STATUS_META[status]
+                  return (
+                    <div key={label} style={{
+                      background: meta.bg, borderRadius: 8,
+                      padding: '6px 8px',
+                    }}>
+                      <p style={{ fontSize: 9, color: meta.color, fontWeight: 600, margin: '0 0 1px' }}>{label}</p>
+                      <p style={{ fontSize: 13, fontWeight: 700, color: meta.color, margin: 0 }}>{fmtBRLPlan(em)}</p>
+                    </div>
+                  )
+                })}
+              </div>
+
+              {/* prazo realista */}
+              {plan.bestMonths !== null && (
+                <div style={{
+                  background: C.purpleBg, borderRadius: 8,
+                  padding: '7px 10px', textAlign: 'center',
+                }}>
+                  <span style={{ fontSize: 11, color: C.purpleDeep }}>
+                    Prazo mais realista: <strong>{plan.bestMonths} meses</strong>
+                  </span>
+                </div>
+              )}
+            </>
+          ) : (
+            <>
+              <div style={{
+                background: 'rgba(0,0,0,0.06)', borderRadius: 99, height: 5, overflow: 'hidden', marginBottom: 5,
+              }}>
+                <div style={{ background: C.amber, height: '100%', borderRadius: 99, width: '5%' }} />
+              </div>
+              <p style={{ fontSize: 11, color: C.textSec, margin: 0 }}>
+                Diagnóstico iniciado — próximo passo: definir sua meta financeira
               </p>
-            </div>
-          </div>
-          <div style={{
-            background: 'rgba(0,0,0,0.06)', borderRadius: 99, height: 5, overflow: 'hidden', marginBottom: 5,
-          }}>
-            <div style={{ background: C.amber, height: '100%', borderRadius: 99, width: '5%' }} />
-          </div>
-          <p style={{ fontSize: 11, color: C.textSec, margin: 0 }}>
-            Diagnóstico iniciado — próximo passo: definir sua meta financeira
-          </p>
+            </>
+          )}
         </div>
 
         {/* ── Despesas recentes ── */}
