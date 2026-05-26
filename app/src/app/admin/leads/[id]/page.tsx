@@ -22,13 +22,20 @@ import { C }                          from '@/app/components/ui'
 // ── Constantes ────────────────────────────────────────────────────────────────
 
 const DREAM_LABELS: Record<string, string> = {
-  casa:          'Casa própria',
-  carro:         'Carro',
-  negocio:       'Negócio',
-  viagem:        'Viagem',
-  dividas:       'Quitar dívidas',
-  educacao:      'Educação',
-  aposentadoria: 'Aposentadoria',
+  carro:                     'Carro próprio',
+  casa:                      'Casa própria',
+  negocio:                   'Negócio próprio',
+  viagem:                    'Viagem dos sonhos',
+  reserva:                   'Reserva de emergência',
+  faculdade:                 'Faculdade',
+  reforma:                   'Reforma da casa',
+  dividas:                   'Quitar dívidas',
+  moto:                      'Moto',
+  caminhao:                  'Caminhão próprio',
+  aposentadoria_imobiliaria: 'Aposentadoria imobiliária',
+  // legados
+  educacao:                  'Educação',
+  aposentadoria:             'Aposentadoria',
 }
 
 const STATUS_META: Record<string, { label: string; bg: string; color: string }> = {

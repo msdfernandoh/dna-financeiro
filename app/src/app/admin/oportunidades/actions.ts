@@ -23,7 +23,8 @@ const VALID_TYPES: OppType[] = ['event', 'course', 'challenge', 'job', 'banner',
 
 const VALID_DREAMS = [
   'carro', 'casa', 'negocio', 'viagem', 'reserva',
-  'faculdade', 'reforma', 'dividas', 'moto', 'outro',
+  'faculdade', 'reforma', 'dividas', 'moto',
+  'caminhao', 'aposentadoria_imobiliaria', 'outro',
 ]
 
 // Perfis empresariais válidos para target_profile

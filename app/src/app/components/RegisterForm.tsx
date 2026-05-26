@@ -4,22 +4,83 @@ import { useActionState, useEffect, useRef, useState } from 'react'
 import type { UnitPublic, CreateLeadResult } from '@/types/database'
 import { C } from './ui'
 
-// ── Dream data ─────────────────────────────────────────────────────────────────
-const DREAMS = [
-  { value: 'carro',     label: 'Carro próprio',         emoji: '🚗' },
-  { value: 'casa',      label: 'Casa própria',          emoji: '🏠' },
-  { value: 'negocio',   label: 'Negócio próprio',       emoji: '🏪' },
-  { value: 'viagem',    label: 'Viagem dos sonhos',      emoji: '✈️' },
-  { value: 'reserva',   label: 'Reserva de emergência', emoji: '🐷' },
-  { value: 'faculdade', label: 'Faculdade',              emoji: '🎓' },
-  { value: 'reforma',   label: 'Reforma da casa',        emoji: '🔨' },
-  { value: 'dividas',   label: 'Quitar dívidas',         emoji: '💳' },
-  { value: 'moto',      label: 'Moto',                   emoji: '🏍️' },
+// ── Dream options (12-item grid) ─────────────────────────────────────────────
+
+const DREAM_OPTIONS = [
+  { dreamKey: 'carro_comprar',             mainDream: 'carro',                    label: 'Carro próprio',           emoji: '🚗' },
+  { dreamKey: 'carro_trocar',              mainDream: 'carro',                    label: 'Trocar de carro',          emoji: '🔄' },
+  { dreamKey: 'casa',                      mainDream: 'casa',                     label: 'Casa própria',             emoji: '🏠' },
+  { dreamKey: 'dividas',                   mainDream: 'dividas',                  label: 'Quitar dívidas',           emoji: '💳' },
+  { dreamKey: 'negocio',                   mainDream: 'negocio',                  label: 'Negócio próprio',          emoji: '🏪' },
+  { dreamKey: 'caminhao',                  mainDream: 'caminhao',                 label: 'Caminhão próprio',         emoji: '🚛' },
+  { dreamKey: 'aposentadoria_imobiliaria', mainDream: 'aposentadoria_imobiliaria',label: 'Aposent. imobiliária',     emoji: '🏦' },
+  { dreamKey: 'reserva',                   mainDream: 'reserva',                  label: 'Reserva de emergência',    emoji: '🐷' },
+  { dreamKey: 'faculdade',                 mainDream: 'faculdade',                label: 'Faculdade',                emoji: '🎓' },
+  { dreamKey: 'viagem',                    mainDream: 'viagem',                   label: 'Viagem dos sonhos',        emoji: '✈️' },
+  { dreamKey: 'reforma',                   mainDream: 'reforma',                  label: 'Reforma da casa',          emoji: '🔨' },
+  { dreamKey: 'moto',                      mainDream: 'moto',                     label: 'Moto',                     emoji: '🏍️' },
 ] as const
 
-type DreamValue = (typeof DREAMS)[number]['value']
+type DreamKey = (typeof DREAM_OPTIONS)[number]['dreamKey']
 
-// ── Formatters ────────────────────────────────────────────────────────────────
+// ── Subtypes (perguntas de qualificação) ────────────────────────────────────
+
+const DREAM_SUBTYPES: Partial<Record<DreamKey, { value: string; label: string }[]>> = {
+  carro_comprar: [
+    { value: 'financiado',     label: 'Quero financiar' },
+    { value: 'a_vista',        label: 'Quero pagar à vista' },
+    { value: 'consorcio',      label: 'Prefiro consórcio' },
+  ],
+  carro_trocar: [
+    { value: 'entrada_carro',  label: 'Usar meu carro como entrada' },
+    { value: 'vender_comprar', label: 'Vender e comprar outro' },
+    { value: 'financiar_novo', label: 'Financiar o novo' },
+  ],
+  casa: [
+    { value: 'comprar_pronta', label: 'Comprar pronta' },
+    { value: 'construir',      label: 'Construir' },
+    { value: 'financiamento',  label: 'Financiamento habitacional' },
+  ],
+  caminhao: [
+    { value: 'renda_autonoma', label: 'Para renda autônoma (frete)' },
+    { value: 'empresa',        label: 'Para minha empresa' },
+    { value: 'ampliar_frota',  label: 'Ampliar frota atual' },
+  ],
+  aposentadoria_imobiliaria: [
+    { value: 'comprar_alugar',   label: 'Comprar para alugar' },
+    { value: 'construir_alugar', label: 'Construir para alugar' },
+    { value: 'revenda',          label: 'Revenda de imóveis' },
+  ],
+  negocio: [
+    { value: 'abrir_zero',    label: 'Abrir do zero' },
+    { value: 'franquia',      label: 'Franquia' },
+    { value: 'ampliar_atual', label: 'Ampliar negócio atual' },
+  ],
+  dividas: [
+    { value: 'cartao',      label: 'Cartão de crédito' },
+    { value: 'emprestimo',  label: 'Empréstimo / cheque especial' },
+    { value: 'varias',      label: 'Várias dívidas ao mesmo tempo' },
+  ],
+}
+
+// ── Sugestões de valor por tipo ──────────────────────────────────────────────
+
+const DREAM_AMOUNTS: Partial<Record<DreamKey, { label: string; value: number }[]>> = {
+  carro_comprar:             [{ label: 'R$ 30.000', value: 30000 }, { label: 'R$ 50.000', value: 50000 }, { label: 'R$ 80.000', value: 80000 }],
+  carro_trocar:              [{ label: 'R$ 20.000', value: 20000 }, { label: 'R$ 40.000', value: 40000 }, { label: 'R$ 60.000', value: 60000 }],
+  casa:                      [{ label: 'R$ 150.000', value: 150000 }, { label: 'R$ 250.000', value: 250000 }, { label: 'R$ 400.000', value: 400000 }],
+  caminhao:                  [{ label: 'R$ 100.000', value: 100000 }, { label: 'R$ 180.000', value: 180000 }, { label: 'R$ 300.000', value: 300000 }],
+  aposentadoria_imobiliaria: [{ label: 'R$ 100.000', value: 100000 }, { label: 'R$ 200.000', value: 200000 }, { label: 'R$ 500.000', value: 500000 }],
+  negocio:                   [{ label: 'R$ 20.000', value: 20000 }, { label: 'R$ 50.000', value: 50000 }, { label: 'R$ 100.000', value: 100000 }],
+  dividas:                   [{ label: 'R$ 5.000', value: 5000 }, { label: 'R$ 15.000', value: 15000 }, { label: 'R$ 30.000', value: 30000 }],
+  reserva:                   [{ label: 'R$ 5.000', value: 5000 }, { label: 'R$ 10.000', value: 10000 }, { label: 'R$ 20.000', value: 20000 }],
+  faculdade:                 [{ label: 'R$ 5.000', value: 5000 }, { label: 'R$ 15.000', value: 15000 }, { label: 'R$ 30.000', value: 30000 }],
+  viagem:                    [{ label: 'R$ 5.000', value: 5000 }, { label: 'R$ 10.000', value: 10000 }, { label: 'R$ 20.000', value: 20000 }],
+  reforma:                   [{ label: 'R$ 10.000', value: 10000 }, { label: 'R$ 25.000', value: 25000 }, { label: 'R$ 50.000', value: 50000 }],
+  moto:                      [{ label: 'R$ 8.000', value: 8000 }, { label: 'R$ 15.000', value: 15000 }, { label: 'R$ 25.000', value: 25000 }],
+}
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
 
 function formatPhone(raw: string): string {
   const d = raw.replace(/\D/g, '').slice(0, 11)
@@ -29,22 +90,34 @@ function formatPhone(raw: string): string {
   return `(${d.slice(0,2)}) ${d.slice(2,7)}-${d.slice(7)}`
 }
 
+function parseAmount(raw: string): number {
+  const n = parseFloat(raw.replace(/\./g, '').replace(',', '.'))
+  return isNaN(n) ? 0 : n
+}
+
 // ── Props ─────────────────────────────────────────────────────────────────────
+
 interface RegisterFormProps {
   unit: UnitPublic
   createLeadAction: (prevState: CreateLeadResult | null, formData: FormData) => Promise<CreateLeadResult>
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
+
 export function RegisterForm({ unit, createLeadAction }: RegisterFormProps) {
   const [state, formAction, isPending] = useActionState(createLeadAction, null)
 
-  const [selectedDream, setSelectedDream] = useState<DreamValue | ''>('')
-  const [income,   setIncome]   = useState('')  // valor livre: "2.500,00" ou "2500"
-  const [expenses, setExpenses] = useState('')  // idem
-  const [phone, setPhone]   = useState('')
-  const [step,  setStep]    = useState<'welcome' | 'dream' | 'form'>('welcome')
-  const [utms,  setUtms]    = useState({
+  const [step, setStep] = useState<'welcome' | 'dream' | 'subtype' | 'amount' | 'form'>('welcome')
+  const [selectedKey,    setSelectedKey]    = useState<DreamKey | ''>('')
+  const [selectedSubtype, setSelectedSubtype] = useState('')
+  const [selectedAmountLabel, setSelectedAmountLabel] = useState('')   // label do botão escolhido
+  const [selectedAmountNum,   setSelectedAmountNum]   = useState(0)    // valor numérico
+  const [customAmount, setCustomAmount] = useState('')                  // input livre
+  const [intentEmpress, setIntentEmpress] = useState(false)
+  const [income,   setIncome]   = useState('')
+  const [expenses, setExpenses] = useState('')
+  const [phone, setPhone]       = useState('')
+  const [utms, setUtms] = useState({
     utm_source: '', utm_medium: '', utm_campaign: '', utm_term: '', utm_content: '',
   })
 
@@ -65,9 +138,22 @@ export function RegisterForm({ unit, createLeadAction }: RegisterFormProps) {
   }, [step])
 
   const primary = unit.primary_color ? `#${unit.primary_color.replace('#', '')}` : C.purple
-  const progress = step === 'dream' ? 33 : 66
 
-  // ── Tela de boas-vindas ────────────────────────────────────────────────────
+  // Dados do sonho selecionado
+  const selectedOption = DREAM_OPTIONS.find(d => d.dreamKey === selectedKey)
+  const mainDream      = selectedOption?.mainDream ?? ''
+  const hasSubtype     = selectedKey ? selectedKey in DREAM_SUBTYPES : false
+
+  // Valor efetivo para enviar ao servidor
+  const effectiveAmountNum   = selectedAmountLabel === 'custom' ? parseAmount(customAmount) : selectedAmountNum
+  const effectiveAmountLabel = selectedAmountLabel === 'custom' ? (customAmount || 'Outro valor') : selectedAmountLabel
+  const canProceedAmount     = effectiveAmountNum > 0
+
+  // Progresso
+  const PROGRESS_MAP: Record<string, number> = { dream: 20, subtype: 45, amount: 65, form: 82 }
+  const progress = PROGRESS_MAP[step] ?? 0
+
+  // ── Tela de boas-vindas ──────────────────────────────────────────────────
   if (step === 'welcome') {
     return (
       <div ref={topRef} style={{
@@ -158,7 +244,7 @@ export function RegisterForm({ unit, createLeadAction }: RegisterFormProps) {
             fontSize:14, color:'rgba(255,255,255,.52)', textAlign:'center',
             lineHeight:1.7, margin:'0 0 30px', maxWidth:270,
           }}>
-            Seu consultor de IA para organizar sua vida, conquistar sonhos e encontrar novas oportunidades.
+            Seu consultor financeiro com IA para organizar sua vida, conquistar sonhos e encontrar oportunidades.
           </p>
 
           {/* Card glassmorphism com features */}
@@ -172,9 +258,9 @@ export function RegisterForm({ unit, createLeadAction }: RegisterFormProps) {
             marginBottom:24,
           }}>
             {([
-              { icon:'📊', text:'Diagnóstico personalizado', accent:'rgba(127,119,221,.22)', tc:'#A89EFF' },
-              { icon:'🎯', text:'Metas e sonhos com plano real', accent:'rgba(127,119,221,.22)', tc:'#A89EFF' },
-              { icon:'💰', text:'Oportunidades de renda extra', accent:'rgba(29,158,117,.2)', tc:'#4ECBA3' },
+              { icon:'📊', text:'Diagnóstico financeiro personalizado',  accent:'rgba(127,119,221,.22)', tc:'#A89EFF' },
+              { icon:'🎯', text:'Plano real para conquistar seus sonhos', accent:'rgba(127,119,221,.22)', tc:'#A89EFF' },
+              { icon:'💰', text:'Oportunidades de renda extra',          accent:'rgba(29,158,117,.2)',   tc:'#4ECBA3' },
             ] as const).map(({ icon, text, accent, tc }, i) => (
               <div key={i} style={{
                 display:'flex', alignItems:'center', gap:14, padding:'15px 18px',
@@ -227,6 +313,8 @@ export function RegisterForm({ unit, createLeadAction }: RegisterFormProps) {
     )
   }
 
+  // ── Layout compartilhado das etapas ──────────────────────────────────────
+
   return (
     <div ref={topRef} style={{ fontFamily: "'DM Sans', system-ui, sans-serif", background: C.bgApp, minHeight: '100dvh' }}>
 
@@ -253,7 +341,7 @@ export function RegisterForm({ unit, createLeadAction }: RegisterFormProps) {
       {/* ── Progress bar ── */}
       <div style={{ background: '#fff', padding: '10px 20px 12px', borderBottom: `0.5px solid ${C.purpleBg}` }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5 }}>
-          <span style={{ fontSize: 11, color: C.textSec }}>Etapa {step === 'dream' ? '1' : '2'} de 2</span>
+          <span style={{ fontSize: 11, color: C.textSec }}>Diagnóstico gratuito</span>
           <span style={{ fontSize: 11, color: primary, fontWeight: 500 }}>{progress}%</span>
         </div>
         <div style={{ background: C.bgSecondary, borderRadius: 99, height: 6, overflow: 'hidden' }}>
@@ -266,7 +354,9 @@ export function RegisterForm({ unit, createLeadAction }: RegisterFormProps) {
 
       <main style={{ maxWidth: 480, margin: '0 auto', padding: '20px 20px 48px' }}>
 
-        {/* ── Step 1: Escolha do sonho ── */}
+        {/* ══════════════════════════════════════════════════════════════════ */}
+        {/* STEP: DREAM SELECTION                                             */}
+        {/* ══════════════════════════════════════════════════════════════════ */}
         {step === 'dream' && (
           <>
             <div style={{ marginBottom: 20 }}>
@@ -282,30 +372,30 @@ export function RegisterForm({ unit, createLeadAction }: RegisterFormProps) {
               Qual é o seu maior sonho?
             </p>
 
-            {/* 3-column dream grid */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: 20 }}>
-              {DREAMS.map((d) => (
+            {/* 3-column dream grid (12 items) */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: 16 }}>
+              {DREAM_OPTIONS.map((d) => (
                 <button
-                  key={d.value}
+                  key={d.dreamKey}
                   type="button"
-                  onClick={() => setSelectedDream(d.value)}
+                  onClick={() => setSelectedKey(d.dreamKey)}
                   style={{
-                    border: selectedDream === d.value
+                    border: selectedKey === d.dreamKey
                       ? `1.5px solid ${primary}`
                       : `1.5px solid ${C.border}`,
                     borderRadius: 14, padding: '12px 6px',
                     display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
                     cursor: 'pointer',
-                    background: selectedDream === d.value ? C.purpleBg : '#fff',
+                    background: selectedKey === d.dreamKey ? C.purpleBg : '#fff',
                     transition: 'all .15s',
                     minHeight: 80, fontFamily: 'inherit',
                   }}
                 >
                   <span style={{ fontSize: 24 }}>{d.emoji}</span>
                   <span style={{
-                    fontSize: 11, textAlign: 'center', lineHeight: 1.3,
-                    color: selectedDream === d.value ? C.purpleDeep : C.textSec,
-                    fontWeight: selectedDream === d.value ? 500 : 400,
+                    fontSize: 10, textAlign: 'center', lineHeight: 1.3,
+                    color: selectedKey === d.dreamKey ? C.purpleDeep : C.textSec,
+                    fontWeight: selectedKey === d.dreamKey ? 600 : 400,
                   }}>{d.label}</span>
                 </button>
               ))}
@@ -313,33 +403,288 @@ export function RegisterForm({ unit, createLeadAction }: RegisterFormProps) {
 
             <button
               type="button"
-              disabled={!selectedDream}
-              onClick={() => selectedDream && setStep('form')}
+              disabled={!selectedKey}
+              onClick={() => {
+                if (!selectedKey) return
+                if (selectedKey in DREAM_SUBTYPES) {
+                  setSelectedSubtype('')
+                  setStep('subtype')
+                } else {
+                  setStep('amount')
+                }
+              }}
               style={{
                 width: '100%',
-                background: selectedDream ? primary : 'rgba(0,0,0,0.1)',
-                color: selectedDream ? '#fff' : C.textSec,
+                background: selectedKey ? primary : 'rgba(0,0,0,0.1)',
+                color: selectedKey ? '#fff' : C.textSec,
                 border: 'none', borderRadius: 12, padding: '14px',
                 fontSize: 15, fontWeight: 500,
-                cursor: selectedDream ? 'pointer' : 'not-allowed',
+                cursor: selectedKey ? 'pointer' : 'not-allowed',
                 fontFamily: 'inherit', transition: 'background .2s',
+                marginBottom: 8,
               }}
             >
               Esse é meu sonho! →
             </button>
 
-            <p style={{ textAlign: 'center', fontSize: 11, color: C.textTer, marginTop: 10 }}>
+            {/* ── DNA Empresarial CTA ── */}
+            <div style={{
+              marginTop: 20,
+              border: `1px dashed ${C.border}`,
+              borderRadius: 14, padding: '14px 16px',
+              background: '#fff',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+                <div style={{
+                  width: 36, height: 36, borderRadius: 10,
+                  background: '#EFF6FF', flexShrink: 0,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18,
+                }}>🏢</div>
+                <div>
+                  <p style={{ fontSize: 13, fontWeight: 600, color: C.text, margin: 0 }}>Tem CNPJ?</p>
+                  <p style={{ fontSize: 11, color: C.textSec, margin: 0 }}>DNA Empresarial para MEIs e PMEs</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedKey('negocio')
+                  setIntentEmpress(true)
+                  setStep('form')
+                }}
+                style={{
+                  width: '100%', border: `1px solid #3B82F6`, borderRadius: 10,
+                  padding: '10px 14px', fontSize: 13, fontWeight: 500,
+                  cursor: 'pointer', fontFamily: 'inherit',
+                  background: '#EFF6FF', color: '#1D4ED8',
+                  transition: 'all .15s',
+                }}
+              >
+                Fazer DNA Empresarial →
+              </button>
+            </div>
+
+            <p style={{ textAlign: 'center', fontSize: 11, color: C.textTer, marginTop: 12 }}>
               🔒 Seus dados são privados e seguros
             </p>
           </>
         )}
 
-        {/* ── Step 2: Formulário ── */}
-        {step === 'form' && (
+        {/* ══════════════════════════════════════════════════════════════════ */}
+        {/* STEP: SUBTYPE                                                      */}
+        {/* ══════════════════════════════════════════════════════════════════ */}
+        {step === 'subtype' && selectedKey && selectedOption && (
           <>
             <button
               type="button"
               onClick={() => setStep('dream')}
+              style={{
+                background: 'none', border: 'none', cursor: 'pointer',
+                color: C.textSec, fontSize: 13,
+                display: 'flex', alignItems: 'center', gap: 6,
+                marginBottom: 16, padding: 0, fontFamily: 'inherit',
+              }}
+            >
+              ← Voltar
+            </button>
+
+            {/* Sonho badge */}
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 10,
+              background: C.purpleBg, borderRadius: 12,
+              padding: '10px 14px', marginBottom: 20,
+            }}>
+              <span style={{ fontSize: 20 }}>{selectedOption.emoji}</span>
+              <div>
+                <p style={{ fontSize: 10, color: primary, fontWeight: 600, margin: '0 0 1px', textTransform: 'uppercase', letterSpacing: 0.4 }}>Sonho selecionado</p>
+                <p style={{ fontSize: 13, fontWeight: 600, color: C.purpleDeep, margin: 0 }}>{selectedOption.label}</p>
+              </div>
+            </div>
+
+            <h2 style={{ fontSize: 18, fontWeight: 600, color: C.text, margin: '0 0 6px' }}>
+              Como você pretende realizar esse sonho?
+            </h2>
+            <p style={{ fontSize: 13, color: C.textSec, margin: '0 0 16px', lineHeight: 1.5 }}>
+              Isso ajuda seu consultor a personalizar o diagnóstico.
+            </p>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 20 }}>
+              {(DREAM_SUBTYPES[selectedKey] ?? []).map(opt => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => setSelectedSubtype(opt.value)}
+                  style={{
+                    border: selectedSubtype === opt.value
+                      ? `1.5px solid ${primary}`
+                      : `1.5px solid ${C.border}`,
+                    borderRadius: 12, padding: '13px 16px',
+                    textAlign: 'left', cursor: 'pointer',
+                    background: selectedSubtype === opt.value ? C.purpleBg : '#fff',
+                    fontFamily: 'inherit', transition: 'all .15s',
+                    display: 'flex', alignItems: 'center', gap: 10,
+                  }}
+                >
+                  <div style={{
+                    width: 18, height: 18, borderRadius: '50%', flexShrink: 0,
+                    border: `2px solid ${selectedSubtype === opt.value ? primary : C.border}`,
+                    background: selectedSubtype === opt.value ? primary : 'transparent',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  }}>
+                    {selectedSubtype === opt.value && (
+                      <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#fff' }} />
+                    )}
+                  </div>
+                  <span style={{
+                    fontSize: 14, fontWeight: selectedSubtype === opt.value ? 600 : 400,
+                    color: selectedSubtype === opt.value ? C.purpleDeep : C.text,
+                  }}>{opt.label}</span>
+                </button>
+              ))}
+            </div>
+
+            <button
+              type="button"
+              disabled={!selectedSubtype}
+              onClick={() => selectedSubtype && setStep('amount')}
+              style={{
+                width: '100%',
+                background: selectedSubtype ? primary : 'rgba(0,0,0,0.1)',
+                color: selectedSubtype ? '#fff' : C.textSec,
+                border: 'none', borderRadius: 12, padding: '14px',
+                fontSize: 15, fontWeight: 500,
+                cursor: selectedSubtype ? 'pointer' : 'not-allowed',
+                fontFamily: 'inherit', transition: 'background .2s',
+              }}
+            >
+              Continuar →
+            </button>
+          </>
+        )}
+
+        {/* ══════════════════════════════════════════════════════════════════ */}
+        {/* STEP: AMOUNT                                                       */}
+        {/* ══════════════════════════════════════════════════════════════════ */}
+        {step === 'amount' && selectedKey && selectedOption && (
+          <>
+            <button
+              type="button"
+              onClick={() => setStep(hasSubtype ? 'subtype' : 'dream')}
+              style={{
+                background: 'none', border: 'none', cursor: 'pointer',
+                color: C.textSec, fontSize: 13,
+                display: 'flex', alignItems: 'center', gap: 6,
+                marginBottom: 16, padding: 0, fontFamily: 'inherit',
+              }}
+            >
+              ← Voltar
+            </button>
+
+            {/* Sonho badge */}
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 10,
+              background: C.purpleBg, borderRadius: 12,
+              padding: '10px 14px', marginBottom: 20,
+            }}>
+              <span style={{ fontSize: 20 }}>{selectedOption.emoji}</span>
+              <div>
+                <p style={{ fontSize: 10, color: primary, fontWeight: 600, margin: '0 0 1px', textTransform: 'uppercase', letterSpacing: 0.4 }}>Sonho selecionado</p>
+                <p style={{ fontSize: 13, fontWeight: 600, color: C.purpleDeep, margin: 0 }}>{selectedOption.label}</p>
+              </div>
+            </div>
+
+            <h2 style={{ fontSize: 18, fontWeight: 600, color: C.text, margin: '0 0 6px' }}>
+              Qual o valor estimado desse sonho?
+            </h2>
+            <p style={{ fontSize: 13, color: C.textSec, margin: '0 0 16px', lineHeight: 1.5 }}>
+              Valor aproximado — não precisa ser exato. Isso ajuda a montar seu plano.
+            </p>
+
+            {/* Botões de valor sugerido */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: 14 }}>
+              {(DREAM_AMOUNTS[selectedKey] ?? []).map(opt => (
+                <button
+                  key={opt.label}
+                  type="button"
+                  onClick={() => {
+                    setSelectedAmountLabel(opt.label)
+                    setSelectedAmountNum(opt.value)
+                    setCustomAmount('')
+                  }}
+                  style={{
+                    border: selectedAmountLabel === opt.label
+                      ? `1.5px solid ${primary}`
+                      : `1.5px solid ${C.border}`,
+                    borderRadius: 12, padding: '12px 8px',
+                    textAlign: 'center', cursor: 'pointer',
+                    background: selectedAmountLabel === opt.label ? C.purpleBg : '#fff',
+                    fontFamily: 'inherit', transition: 'all .15s',
+                  }}
+                >
+                  <span style={{
+                    fontSize: 13, fontWeight: selectedAmountLabel === opt.label ? 700 : 500,
+                    color: selectedAmountLabel === opt.label ? C.purpleDeep : C.text,
+                  }}>{opt.label}</span>
+                </button>
+              ))}
+            </div>
+
+            {/* Input livre */}
+            <div style={{ marginBottom: 20 }}>
+              <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: C.textSec, marginBottom: 5, textTransform: 'uppercase', letterSpacing: 0.4 }}>
+                Outro valor
+              </label>
+              <div style={{ position: 'relative' }}>
+                <span style={prefixSt}>R$</span>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  placeholder="Ex: 45.000,00"
+                  value={customAmount}
+                  onChange={e => {
+                    setCustomAmount(e.target.value)
+                    setSelectedAmountLabel('custom')
+                    setSelectedAmountNum(0)
+                  }}
+                  style={{ ...inputSt, paddingLeft: 44, borderColor: selectedAmountLabel === 'custom' && customAmount ? primary : C.border }}
+                />
+              </div>
+            </div>
+
+            <button
+              type="button"
+              disabled={!canProceedAmount}
+              onClick={() => canProceedAmount && setStep('form')}
+              style={{
+                width: '100%',
+                background: canProceedAmount ? primary : 'rgba(0,0,0,0.1)',
+                color: canProceedAmount ? '#fff' : C.textSec,
+                border: 'none', borderRadius: 12, padding: '14px',
+                fontSize: 15, fontWeight: 500,
+                cursor: canProceedAmount ? 'pointer' : 'not-allowed',
+                fontFamily: 'inherit', transition: 'background .2s',
+              }}
+            >
+              Continuar →
+            </button>
+          </>
+        )}
+
+        {/* ══════════════════════════════════════════════════════════════════ */}
+        {/* STEP: FORM                                                         */}
+        {/* ══════════════════════════════════════════════════════════════════ */}
+        {step === 'form' && (
+          <>
+            <button
+              type="button"
+              onClick={() => {
+                if (intentEmpress) {
+                  setIntentEmpress(false)
+                  setStep('dream')
+                } else {
+                  setStep('amount')
+                }
+              }}
               style={{
                 background: 'none', border: 'none', cursor: 'pointer',
                 color: C.textSec, fontSize: 13,
@@ -355,23 +700,28 @@ export function RegisterForm({ unit, createLeadAction }: RegisterFormProps) {
               Só o essencial — leva menos de 1 minuto.
             </p>
 
-            {/* Sonho selecionado */}
-            {selectedDream && (() => {
-              const dream = DREAMS.find(d => d.value === selectedDream)!
-              return (
-                <div style={{
-                  background: C.purpleBg, borderRadius: 12,
-                  padding: '12px 14px', marginBottom: 16,
-                  display: 'flex', alignItems: 'center', gap: 10,
-                }}>
-                  <span style={{ fontSize: 20 }}>{dream.emoji}</span>
-                  <div>
-                    <p style={{ fontSize: 10, color: primary, fontWeight: 500, margin: '0 0 1px' }}>Seu sonho</p>
-                    <p style={{ fontSize: 13, fontWeight: 500, color: C.purpleDark, margin: 0 }}>{dream.label}</p>
-                  </div>
+            {/* Resumo do sonho selecionado */}
+            {selectedOption && (
+              <div style={{
+                background: intentEmpress ? '#EFF6FF' : C.purpleBg,
+                border: `1px solid ${intentEmpress ? '#BFDBFE' : C.purpleBg}`,
+                borderRadius: 12, padding: '12px 14px', marginBottom: 16,
+                display: 'flex', alignItems: 'center', gap: 10,
+              }}>
+                <span style={{ fontSize: 20 }}>{intentEmpress ? '🏢' : selectedOption.emoji}</span>
+                <div>
+                  <p style={{ fontSize: 10, color: intentEmpress ? '#1D4ED8' : primary, fontWeight: 600, margin: '0 0 1px', textTransform: 'uppercase', letterSpacing: 0.4 }}>
+                    {intentEmpress ? 'DNA Empresarial' : 'Seu sonho'}
+                  </p>
+                  <p style={{ fontSize: 13, fontWeight: 600, color: intentEmpress ? '#1E3A8A' : C.purpleDeep, margin: 0 }}>
+                    {intentEmpress ? 'Diagnóstico para sua empresa' : selectedOption.label}
+                    {!intentEmpress && effectiveAmountLabel && (
+                      <span style={{ fontWeight: 400, color: primary }}> · {effectiveAmountLabel}</span>
+                    )}
+                  </p>
                 </div>
-              )
-            })()}
+              </div>
+            )}
 
             {/* Form card */}
             <div style={{
@@ -379,12 +729,17 @@ export function RegisterForm({ unit, createLeadAction }: RegisterFormProps) {
               border: `0.5px solid ${C.border}`, padding: '16px',
             }}>
               <form action={formAction} noValidate>
-                <input type="hidden" name="main_dream"    value={selectedDream} />
-                <input type="hidden" name="utm_source"    value={utms.utm_source} />
-                <input type="hidden" name="utm_medium"    value={utms.utm_medium} />
-                <input type="hidden" name="utm_campaign"  value={utms.utm_campaign} />
-                <input type="hidden" name="utm_term"      value={utms.utm_term} />
-                <input type="hidden" name="utm_content"   value={utms.utm_content} />
+                {/* Campos hidden — nunca vêm do servidor, sempre do estado do cliente */}
+                <input type="hidden" name="main_dream"            value={mainDream} />
+                <input type="hidden" name="dream_subtype"         value={selectedSubtype} />
+                <input type="hidden" name="dream_target_amount"   value={effectiveAmountNum > 0 ? String(effectiveAmountNum) : ''} />
+                <input type="hidden" name="dream_target_label"    value={effectiveAmountLabel} />
+                <input type="hidden" name="intencao_empresa"      value={intentEmpress ? '1' : ''} />
+                <input type="hidden" name="utm_source"            value={utms.utm_source} />
+                <input type="hidden" name="utm_medium"            value={utms.utm_medium} />
+                <input type="hidden" name="utm_campaign"          value={utms.utm_campaign} />
+                <input type="hidden" name="utm_term"              value={utms.utm_term} />
+                <input type="hidden" name="utm_content"           value={utms.utm_content} />
 
                 <Field label="Seu nome" error={state?.success === false && state.field === 'name' ? state.error : undefined}>
                   <input name="name" type="text" placeholder="Ex: Maria Silva"

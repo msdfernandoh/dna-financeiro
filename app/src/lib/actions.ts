@@ -90,7 +90,8 @@ function validateLeadInput(data: Record<string, string>): {
   const main_dream = data.main_dream?.trim()
   const validDreams = [
     'casa', 'carro', 'negocio', 'viagem', 'reserva',
-    'faculdade', 'reforma', 'dividas', 'moto', 'outro',
+    'faculdade', 'reforma', 'dividas', 'moto',
+    'caminhao', 'aposentadoria_imobiliaria', 'outro',
   ]
   if (!main_dream || !validDreams.includes(main_dream)) {
     errors.main_dream = 'Selecione seu principal sonho'
@@ -295,6 +296,33 @@ export async function createLead(
     }
   }
 
+  // ── Inserir sonho no banco (graceful — nunca falha o lead) ──────────────────
+  const rawTargetAmount = raw.dream_target_amount?.trim() ?? ''
+  const targetAmount = parseFloat(rawTargetAmount.replace(/\./g, '').replace(',', '.'))
+
+  if (!isNaN(targetAmount) && targetAmount > 0) {
+    const dreamSubtype = raw.dream_subtype?.trim() || null
+    const targetLabel  = raw.dream_target_label?.trim() || null
+
+    const { error: dreamErr } = await supabase
+      .from('dreams')
+      .insert({
+        unit_id:           unitId,
+        lead_id:           lead.id,
+        dream_type:        input.main_dream,
+        dream_subtype:     dreamSubtype,
+        target_amount:     targetAmount,
+        target_label:      targetLabel,
+        saved_amount:      0,
+        monthly_contribution: 0,
+        is_primary:        true,
+      })
+
+    if (dreamErr) {
+      console.error('[createLead] erro ao inserir sonho:', dreamErr.message)
+    }
+  }
+
   // Gerar token de sessão para o lead (opaco — não é o UUID)
   // Armazenar em cookie HttpOnly para uso nas próximas telas
   const leadToken = Buffer.from(`${lead.id}:${Date.now()}`).toString('base64url')
@@ -308,7 +336,10 @@ export async function createLead(
     path: '/',
   })
 
-  // Redirecionar para o diagnóstico
+  // Redirecionar — empresa path tem destino diferente
+  if (raw.intencao_empresa === '1') {
+    redirect(`/${unitSlug}/empresa`)
+  }
   redirect(`/${unitSlug}/diagnostico`)
 }
 

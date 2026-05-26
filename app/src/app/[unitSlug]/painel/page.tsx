@@ -23,16 +23,18 @@ const EXPENSE_CATS: Record<string, { emoji: string; label: string }> = {
 // ── Sonhos ────────────────────────────────────────────────────────────────────
 
 const DREAMS: Record<string, { label: string; emoji: string }> = {
-  carro:     { label: 'Carro próprio',         emoji: '🚗' },
-  casa:      { label: 'Casa própria',          emoji: '🏠' },
-  negocio:   { label: 'Negócio próprio',       emoji: '🏪' },
-  viagem:    { label: 'Viagem dos sonhos',      emoji: '✈️' },
-  reserva:   { label: 'Reserva de emergência', emoji: '🐷' },
-  faculdade: { label: 'Faculdade',              emoji: '🎓' },
-  reforma:   { label: 'Reforma da casa',        emoji: '🔨' },
-  dividas:   { label: 'Quitar dívidas',         emoji: '💳' },
-  moto:      { label: 'Moto',                   emoji: '🏍️' },
-  outro:     { label: 'Outro sonho',            emoji: '⭐' },
+  carro:                     { label: 'Carro próprio',            emoji: '🚗' },
+  casa:                      { label: 'Casa própria',             emoji: '🏠' },
+  negocio:                   { label: 'Negócio próprio',          emoji: '🏪' },
+  viagem:                    { label: 'Viagem dos sonhos',        emoji: '✈️' },
+  reserva:                   { label: 'Reserva de emergência',    emoji: '🐷' },
+  faculdade:                 { label: 'Faculdade',                emoji: '🎓' },
+  reforma:                   { label: 'Reforma da casa',          emoji: '🔨' },
+  dividas:                   { label: 'Quitar dívidas',           emoji: '💳' },
+  moto:                      { label: 'Moto',                     emoji: '🏍️' },
+  caminhao:                  { label: 'Caminhão próprio',         emoji: '🚛' },
+  aposentadoria_imobiliaria: { label: 'Aposentadoria imobiliária', emoji: '🏦' },
+  outro:                     { label: 'Outro sonho',              emoji: '⭐' },
 }
 
 // ── Formatadores ──────────────────────────────────────────────────────────────

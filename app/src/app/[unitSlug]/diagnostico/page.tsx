@@ -7,31 +7,35 @@ import { C } from '@/app/components/ui'
 // ── Dados dos sonhos ──────────────────────────────────────────────────────────
 
 const DREAMS: Record<string, { label: string; emoji: string }> = {
-  carro:     { label: 'Carro próprio',         emoji: '🚗' },
-  casa:      { label: 'Casa própria',          emoji: '🏠' },
-  negocio:   { label: 'Negócio próprio',       emoji: '🏪' },
-  viagem:    { label: 'Viagem dos sonhos',      emoji: '✈️' },
-  reserva:   { label: 'Reserva de emergência', emoji: '🐷' },
-  faculdade: { label: 'Faculdade',              emoji: '🎓' },
-  reforma:   { label: 'Reforma da casa',        emoji: '🔨' },
-  dividas:   { label: 'Quitar dívidas',         emoji: '💳' },
-  moto:      { label: 'Moto',                   emoji: '🏍️' },
-  outro:     { label: 'Outro sonho',            emoji: '⭐' },
+  carro:                     { label: 'Carro próprio',            emoji: '🚗' },
+  casa:                      { label: 'Casa própria',             emoji: '🏠' },
+  negocio:                   { label: 'Negócio próprio',          emoji: '🏪' },
+  viagem:                    { label: 'Viagem dos sonhos',        emoji: '✈️' },
+  reserva:                   { label: 'Reserva de emergência',    emoji: '🐷' },
+  faculdade:                 { label: 'Faculdade',                emoji: '🎓' },
+  reforma:                   { label: 'Reforma da casa',          emoji: '🔨' },
+  dividas:                   { label: 'Quitar dívidas',           emoji: '💳' },
+  moto:                      { label: 'Moto',                     emoji: '🏍️' },
+  caminhao:                  { label: 'Caminhão próprio',         emoji: '🚛' },
+  aposentadoria_imobiliaria: { label: 'Aposentadoria imobiliária', emoji: '🏦' },
+  outro:                     { label: 'Outro sonho',              emoji: '⭐' },
 }
 
 // ── Recomendações por sonho ────────────────────────────────────────────────────
 
 const RECOMENDACOES: Record<string, string> = {
-  carro:     'Com sua sobra mensal atual, já é possível montar um plano para aproximar você do seu carro sem comprometer sua rotina.',
-  casa:      'Seu primeiro passo é organizar a sobra mensal e entender quanto pode ser direcionado para uma conquista maior.',
-  negocio:   'Com disciplina financeira, você pode separar uma parte da sobra para construir o capital inicial do seu negócio.',
-  viagem:    'Definindo um valor mensal para poupar, sua viagem dos sonhos pode ser mais próxima do que parece.',
-  reserva:   'Uma reserva de emergência garante segurança e tranquilidade. Vamos calcular quanto você precisa guardar por mês.',
-  faculdade: 'Investir em educação é uma das melhores formas de aumentar sua renda futura. Vamos planejar juntos.',
-  reforma:   'Com planejamento, cada mês você pode se aproximar da reforma sem comprometer as despesas essenciais.',
-  dividas:   'O foco inicial deve ser identificar quais despesas podem ser reduzidas e priorizar dívidas com maior impacto.',
-  moto:      'Com um plano de poupança mensal, sua moto pode ser uma realidade mais cedo do que você imagina.',
-  outro:     'Seu sonho merece um plano personalizado. Vamos juntos descobrir o caminho mais inteligente para chegar lá.',
+  carro:                     'Com sua sobra mensal atual, já é possível montar um plano para aproximar você do seu carro sem comprometer sua rotina.',
+  casa:                      'Seu primeiro passo é organizar a sobra mensal e entender quanto pode ser direcionado para uma conquista maior.',
+  negocio:                   'Com disciplina financeira, você pode separar uma parte da sobra para construir o capital inicial do seu negócio.',
+  viagem:                    'Definindo um valor mensal para poupar, sua viagem dos sonhos pode ser mais próxima do que parece.',
+  reserva:                   'Uma reserva de emergência garante segurança e tranquilidade. Vamos calcular quanto você precisa guardar por mês.',
+  faculdade:                 'Investir em educação é uma das melhores formas de aumentar sua renda futura. Vamos planejar juntos.',
+  reforma:                   'Com planejamento, cada mês você pode se aproximar da reforma sem comprometer as despesas essenciais.',
+  dividas:                   'O foco inicial deve ser identificar quais despesas podem ser reduzidas e priorizar dívidas com maior impacto.',
+  moto:                      'Com um plano de poupança mensal, sua moto pode ser uma realidade mais cedo do que você imagina.',
+  caminhao:                  'Ter seu próprio caminhão abre portas para autonomia e renda. Vamos montar um plano de aquisição que caiba no seu orçamento.',
+  aposentadoria_imobiliaria: 'Investir em imóveis para renda passiva é um caminho sólido. Vamos organizar as finanças para você chegar lá com segurança.',
+  outro:                     'Seu sonho merece um plano personalizado. Vamos juntos descobrir o caminho mais inteligente para chegar lá.',
 }
 
 // ── Perfil financeiro ──────────────────────────────────────────────────────────

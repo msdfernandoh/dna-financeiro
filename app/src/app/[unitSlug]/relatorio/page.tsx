@@ -70,6 +70,16 @@ const DREAMS: Record<string, { label: string; emoji: string; mensagem: string; p
     mensagem: 'Uma moto pode representar muito mais que transporte — é independência, economia e qualidade de vida no dia a dia. Com planejamento, você chega lá.',
     proximoPasso: 'Calcule o valor da moto desejada, pesquise custos de seguro e manutenção, e defina quanto guardar mensalmente para realizar esse sonho.',
   },
+  caminhao: {
+    label: 'Caminhão próprio', emoji: '🚛',
+    mensagem: 'Ter seu próprio caminhão é um passo decisivo para a independência e geração de renda. Com um plano financeiro sólido, esse investimento pode se pagar rapidamente.',
+    proximoPasso: 'Pesquise os modelos disponíveis, simule financiamentos e consórcios, e calcule a renda potencial que o caminhão pode gerar. Cada mês poupado é um passo mais perto.',
+  },
+  aposentadoria_imobiliaria: {
+    label: 'Aposentadoria imobiliária', emoji: '🏦',
+    mensagem: 'Construir patrimônio imobiliário para renda passiva é uma das estratégias mais seguras de longo prazo. Com disciplina e planejamento, você pode garantir tranquilidade financeira no futuro.',
+    proximoPasso: 'Defina qual tipo de imóvel deseja adquirir, pesquise regiões com boa rentabilidade de aluguel, e calcule quanto precisa poupar por mês para montar a entrada necessária.',
+  },
   outro: {
     label: 'Sonho pessoal', emoji: '⭐',
     mensagem: 'Ter um objetivo claro é o primeiro passo para realizá-lo. Agora é hora de dar um número e um prazo para esse sonho.',

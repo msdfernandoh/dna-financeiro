@@ -55,11 +55,18 @@ function pct(part: number, total: number): string {
 // ── Mapeamentos ───────────────────────────────────────────────────────────────
 
 const DREAM_LABELS: Record<string, string> = {
-  carro:     '🚗 Carro',   casa:      '🏠 Casa',
-  negocio:   '🏪 Negócio', viagem:    '✈️ Viagem',
-  reserva:   '🐷 Reserva', faculdade: '🎓 Faculdade',
-  reforma:   '🔨 Reforma', dividas:   '💳 Dívidas',
-  moto:      '🏍️ Moto',    outro:     '⭐ Outro',
+  carro:                     '🚗 Carro',
+  casa:                      '🏠 Casa',
+  negocio:                   '🏪 Negócio',
+  viagem:                    '✈️ Viagem',
+  reserva:                   '🐷 Reserva',
+  faculdade:                 '🎓 Faculdade',
+  reforma:                   '🔨 Reforma',
+  dividas:                   '💳 Dívidas',
+  moto:                      '🏍️ Moto',
+  caminhao:                  '🚛 Caminhão',
+  aposentadoria_imobiliaria: '🏦 Aposent. Imóvel',
+  outro:                     '⭐ Outro',
 }
 
 const STATUS_META: Record<string, { label: string; bg: string; color: string }> = {
