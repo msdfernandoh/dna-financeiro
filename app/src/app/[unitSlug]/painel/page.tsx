@@ -7,7 +7,8 @@ import { FeaturedOppCard }   from './_FeaturedOppCard'
 import { LeadBottomNav }     from '@/app/components/LeadBottomNav'
 import {
   calculateDreamPlan, formatDreamSubtype, fmtBRLPlan,
-  GOAL_STATUS_META,
+  GOAL_STATUS_META, INSTALLMENT_STATUS_META,
+  type PlanSettings,
 } from '@/lib/dreamPlan'
 
 // ── Categorias de despesa ─────────────────────────────────────────────────────
@@ -172,6 +173,32 @@ export default async function PainelPage({ params }: Props) {
     primaryDream = data
   } catch { /* lead antigo sem dreams */ }
 
+  // 3e. Buscar configuração de plano sugerido (dream_plan_settings)
+  let planSettings: PlanSettings | null = null
+  if (primaryDream) {
+    try {
+      const { data: psRows } = await createServerSupabaseClient()
+        .from('dream_plan_settings')
+        .select('dream_subtype, term_months, full_installment_amount, reduced_installment_amount, full_installment_rate, reduced_installment_rate')
+        .eq('dream_type', primaryDream.dream_type)
+        .eq('active', true)
+        .is('deleted_at', null)
+        .limit(10)
+      const row = (psRows ?? []).find(r => r.dream_subtype === primaryDream!.dream_subtype)
+        ?? (psRows ?? []).find(r => r.dream_subtype === null)
+        ?? null
+      if (row) {
+        planSettings = {
+          term_months:                row.term_months,
+          full_installment_amount:    row.full_installment_amount,
+          reduced_installment_amount: row.reduced_installment_amount,
+          full_installment_rate:      row.full_installment_rate,
+          reduced_installment_rate:   row.reduced_installment_rate,
+        }
+      }
+    } catch { /* graceful — mantém cálculo linear */ }
+  }
+
   // 4. Cálculos financeiros (unit_id usado apenas no servidor para queries)
   const income       = lead.monthly_income   ?? 0
   const expenses     = lead.monthly_expenses ?? 0
@@ -182,7 +209,7 @@ export default async function PainelPage({ params }: Props) {
   const dream     = (primaryDream?.dream_type ?? lead.main_dream) ?? 'outro'
   const dreamInfo = DREAMS[dream] ?? DREAMS.outro
 
-  const plan = primaryDream ? calculateDreamPlan(primaryDream.target_amount, sobra) : null
+  const plan = primaryDream ? calculateDreamPlan(primaryDream.target_amount, sobra, planSettings) : null
   const firstName = lead.name.split(' ')[0]
   const avatar    = initials(lead.name)
 
@@ -763,6 +790,38 @@ export default async function PainelPage({ params }: Props) {
                   <span style={{ fontSize: 11, color: C.purpleDeep }}>
                     Prazo mais realista: <strong>{plan.bestMonths} meses</strong>
                   </span>
+                </div>
+              )}
+
+              {/* Parcela sugerida (compacto) */}
+              {plan.hasPlanSettings && (plan.fullInstallment !== null || plan.reducedInstallment !== null) && (
+                <div style={{ marginTop: 8, display: 'flex', gap: 5, flexWrap: 'wrap' }}>
+                  {plan.fullInstallment !== null && plan.fullInstallmentStatus !== null && (
+                    <div style={{
+                      flex: 1, background: INSTALLMENT_STATUS_META[plan.fullInstallmentStatus].bg,
+                      borderRadius: 8, padding: '7px 10px',
+                      display: 'flex', alignItems: 'center', gap: 5,
+                    }}>
+                      <span style={{ fontSize: 12 }}>{INSTALLMENT_STATUS_META[plan.fullInstallmentStatus].emoji}</span>
+                      <div>
+                        <p style={{ fontSize: 9, color: INSTALLMENT_STATUS_META[plan.fullInstallmentStatus].color, fontWeight: 600, margin: '0 0 1px' }}>Parcela cheia</p>
+                        <p style={{ fontSize: 12, fontWeight: 700, color: INSTALLMENT_STATUS_META[plan.fullInstallmentStatus].color, margin: 0 }}>{fmtBRLPlan(plan.fullInstallment)}/mês</p>
+                      </div>
+                    </div>
+                  )}
+                  {plan.reducedInstallment !== null && plan.reducedInstallmentStatus !== null && (
+                    <div style={{
+                      flex: 1, background: INSTALLMENT_STATUS_META[plan.reducedInstallmentStatus].bg,
+                      borderRadius: 8, padding: '7px 10px',
+                      display: 'flex', alignItems: 'center', gap: 5,
+                    }}>
+                      <span style={{ fontSize: 12 }}>{INSTALLMENT_STATUS_META[plan.reducedInstallmentStatus].emoji}</span>
+                      <div>
+                        <p style={{ fontSize: 9, color: INSTALLMENT_STATUS_META[plan.reducedInstallmentStatus].color, fontWeight: 600, margin: '0 0 1px' }}>Parcela reduzida</p>
+                        <p style={{ fontSize: 12, fontWeight: 700, color: INSTALLMENT_STATUS_META[plan.reducedInstallmentStatus].color, margin: 0 }}>{fmtBRLPlan(plan.reducedInstallment)}/mês</p>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </>

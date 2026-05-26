@@ -20,7 +20,8 @@ import { AdminShell }                 from '../../_AdminShell'
 import { C }                          from '@/app/components/ui'
 import {
   calculateDreamPlan, formatDreamSubtype, fmtBRLPlan,
-  GOAL_STATUS_META,
+  GOAL_STATUS_META, INSTALLMENT_STATUS_META,
+  type PlanSettings,
 } from '@/lib/dreamPlan'
 
 // ── Constantes ────────────────────────────────────────────────────────────────
@@ -514,8 +515,34 @@ export default async function LeadDetailPage({
     primaryDream = pdData
   } catch { /* lead antigo sem dreams */ }
 
+  // ── 5d. Configuração de plano sugerido (dream_plan_settings) ─────────────
+  let planSettings: PlanSettings | null = null
+  if (primaryDream && canSeeSensitive) {
+    try {
+      const { data: psRows } = await supabase
+        .from('dream_plan_settings')
+        .select('dream_subtype, term_months, full_installment_amount, reduced_installment_amount, full_installment_rate, reduced_installment_rate')
+        .eq('dream_type', primaryDream.dream_type)
+        .eq('active', true)
+        .is('deleted_at', null)
+        .limit(10)
+      const row = (psRows ?? []).find(r => r.dream_subtype === primaryDream!.dream_subtype)
+        ?? (psRows ?? []).find(r => r.dream_subtype === null)
+        ?? null
+      if (row) {
+        planSettings = {
+          term_months:                row.term_months,
+          full_installment_amount:    row.full_installment_amount,
+          reduced_installment_amount: row.reduced_installment_amount,
+          full_installment_rate:      row.full_installment_rate,
+          reduced_installment_rate:   row.reduced_installment_rate,
+        }
+      }
+    } catch { /* graceful — mantém cálculo linear */ }
+  }
+
   const adminPlan = primaryDream && canSeeSensitive
-    ? calculateDreamPlan(primaryDream.target_amount, sobra)
+    ? calculateDreamPlan(primaryDream.target_amount, sobra, planSettings)
     : null
 
   // ── 6. Nome da unidade (master only) ──────────────────────────────────────
@@ -875,6 +902,45 @@ export default async function LeadDetailPage({
                   Prazo estimado com sobra atual: <strong>{adminPlan.bestMonths} meses</strong>
                 </span>
               </div>
+            )}
+
+            {/* Plano sugerido (admin) */}
+            {adminPlan.hasPlanSettings && (adminPlan.fullInstallment !== null || adminPlan.reducedInstallment !== null) ? (
+              <div style={{ marginTop: 8, borderTop: '0.5px solid rgba(255,255,255,0.5)', paddingTop: 8 }}>
+                <p style={{ fontSize: 10, fontWeight: 700, color: C.amberDark, margin: '0 0 6px', textTransform: 'uppercase', letterSpacing: 0.4 }}>
+                  Plano sugerido{adminPlan.suggestedTerm ? ` · ${adminPlan.suggestedTerm} meses` : ''}
+                </p>
+                <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
+                  {adminPlan.fullInstallment !== null && adminPlan.fullInstallmentStatus !== null && (
+                    <div style={{
+                      flex: 1, background: 'rgba(255,255,255,0.7)', borderRadius: 8, padding: '7px 10px',
+                      border: `1px solid ${INSTALLMENT_STATUS_META[adminPlan.fullInstallmentStatus].color}30`,
+                    }}>
+                      <p style={{ fontSize: 9, fontWeight: 600, color: INSTALLMENT_STATUS_META[adminPlan.fullInstallmentStatus].color, margin: '0 0 1px', textTransform: 'uppercase' }}>Parcela cheia</p>
+                      <p style={{ fontSize: 13, fontWeight: 700, color: INSTALLMENT_STATUS_META[adminPlan.fullInstallmentStatus].color, margin: '0 0 2px' }}>{fmtBRLPlan(adminPlan.fullInstallment)}/mês</p>
+                      <p style={{ fontSize: 10, color: INSTALLMENT_STATUS_META[adminPlan.fullInstallmentStatus].color, margin: 0 }}>
+                        {INSTALLMENT_STATUS_META[adminPlan.fullInstallmentStatus].emoji} {INSTALLMENT_STATUS_META[adminPlan.fullInstallmentStatus].label}
+                      </p>
+                    </div>
+                  )}
+                  {adminPlan.reducedInstallment !== null && adminPlan.reducedInstallmentStatus !== null && (
+                    <div style={{
+                      flex: 1, background: 'rgba(255,255,255,0.7)', borderRadius: 8, padding: '7px 10px',
+                      border: `1px solid ${INSTALLMENT_STATUS_META[adminPlan.reducedInstallmentStatus].color}30`,
+                    }}>
+                      <p style={{ fontSize: 9, fontWeight: 600, color: INSTALLMENT_STATUS_META[adminPlan.reducedInstallmentStatus].color, margin: '0 0 1px', textTransform: 'uppercase' }}>Parcela reduzida</p>
+                      <p style={{ fontSize: 13, fontWeight: 700, color: INSTALLMENT_STATUS_META[adminPlan.reducedInstallmentStatus].color, margin: '0 0 2px' }}>{fmtBRLPlan(adminPlan.reducedInstallment)}/mês</p>
+                      <p style={{ fontSize: 10, color: INSTALLMENT_STATUS_META[adminPlan.reducedInstallmentStatus].color, margin: 0 }}>
+                        {INSTALLMENT_STATUS_META[adminPlan.reducedInstallmentStatus].emoji} {INSTALLMENT_STATUS_META[adminPlan.reducedInstallmentStatus].label}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <p style={{ fontSize: 10, color: C.amberDark, margin: '8px 0 0', fontStyle: 'italic', opacity: 0.7 }}>
+                Plano sugerido ainda não configurado para este sonho.
+              </p>
             )}
           </div>
         )}

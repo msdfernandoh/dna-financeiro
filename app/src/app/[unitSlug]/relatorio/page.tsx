@@ -17,7 +17,8 @@ import { LeadBottomNav }      from '@/app/components/LeadBottomNav'
 import { PrintReportButton }  from './PrintReportButton'
 import {
   calculateDreamPlan, formatDreamSubtype, fmtBRLPlan,
-  GOAL_STATUS_META,
+  GOAL_STATUS_META, INSTALLMENT_STATUS_META,
+  type PlanSettings,
 } from '@/lib/dreamPlan'
 
 interface Props {
@@ -505,8 +506,34 @@ export default async function RelatorioPage({ params }: Props) {
     primaryDream = pdData
   } catch { /* lead antigo sem dreams */ }
 
+  // ── 6d. Configuração de plano sugerido (dream_plan_settings) ─────────────
+  let planSettings: PlanSettings | null = null
+  if (primaryDream) {
+    try {
+      const { data: psRows } = await supabase
+        .from('dream_plan_settings')
+        .select('dream_subtype, term_months, full_installment_amount, reduced_installment_amount, full_installment_rate, reduced_installment_rate')
+        .eq('dream_type', primaryDream.dream_type)
+        .eq('active', true)
+        .is('deleted_at', null)
+        .limit(10)
+      const row = (psRows ?? []).find(r => r.dream_subtype === primaryDream!.dream_subtype)
+        ?? (psRows ?? []).find(r => r.dream_subtype === null)
+        ?? null
+      if (row) {
+        planSettings = {
+          term_months:                row.term_months,
+          full_installment_amount:    row.full_installment_amount,
+          reduced_installment_amount: row.reduced_installment_amount,
+          full_installment_rate:      row.full_installment_rate,
+          reduced_installment_rate:   row.reduced_installment_rate,
+        }
+      }
+    } catch { /* graceful — mantém cálculo linear */ }
+  }
+
   const dreamPlan = primaryDream
-    ? calculateDreamPlan(primaryDream.target_amount, sobra)
+    ? calculateDreamPlan(primaryDream.target_amount, sobra, planSettings)
     : null
 
   const primary = unit.primary_color ? `#${unit.primary_color.replace('#', '')}` : C.purple
@@ -945,6 +972,58 @@ export default async function RelatorioPage({ params }: Props) {
                   </span>
                 </div>
               )}
+
+              {/* Plano sugerido */}
+              {dreamPlan.hasPlanSettings && (dreamPlan.fullInstallment !== null || dreamPlan.reducedInstallment !== null) ? (
+                <div style={{ marginTop: 10, borderTop: '0.5px solid rgba(255,255,255,0.4)', paddingTop: 10 }}>
+                  <p style={{ fontSize: 11, fontWeight: 600, color: C.amberDark, margin: '0 0 8px', textTransform: 'uppercase', letterSpacing: 0.4 }}>
+                    💡 Plano sugerido{dreamPlan.suggestedTerm ? ` · ${dreamPlan.suggestedTerm} meses` : ''}
+                  </p>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    {dreamPlan.fullInstallment !== null && dreamPlan.fullInstallmentStatus !== null && (
+                      <div style={{
+                        background: 'rgba(255,255,255,0.7)', borderRadius: 10, padding: '8px 12px',
+                        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
+                      }}>
+                        <div>
+                          <p style={{ fontSize: 10, fontWeight: 600, color: INSTALLMENT_STATUS_META[dreamPlan.fullInstallmentStatus].color, margin: '0 0 1px', textTransform: 'uppercase', letterSpacing: 0.3 }}>Parcela cheia</p>
+                          <p style={{ fontSize: 15, fontWeight: 700, color: INSTALLMENT_STATUS_META[dreamPlan.fullInstallmentStatus].color, margin: 0 }}>{fmtBRLPlan(dreamPlan.fullInstallment)}/mês</p>
+                        </div>
+                        <div style={{ textAlign: 'right' }}>
+                          <span style={{ fontSize: 16 }}>{INSTALLMENT_STATUS_META[dreamPlan.fullInstallmentStatus].emoji}</span>
+                          <p style={{ fontSize: 10, color: INSTALLMENT_STATUS_META[dreamPlan.fullInstallmentStatus].color, fontWeight: 500, margin: '2px 0 0' }}>
+                            {INSTALLMENT_STATUS_META[dreamPlan.fullInstallmentStatus].label}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                    {dreamPlan.reducedInstallment !== null && dreamPlan.reducedInstallmentStatus !== null && (
+                      <div style={{
+                        background: 'rgba(255,255,255,0.7)', borderRadius: 10, padding: '8px 12px',
+                        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
+                      }}>
+                        <div>
+                          <p style={{ fontSize: 10, fontWeight: 600, color: INSTALLMENT_STATUS_META[dreamPlan.reducedInstallmentStatus].color, margin: '0 0 1px', textTransform: 'uppercase', letterSpacing: 0.3 }}>Parcela reduzida</p>
+                          <p style={{ fontSize: 15, fontWeight: 700, color: INSTALLMENT_STATUS_META[dreamPlan.reducedInstallmentStatus].color, margin: 0 }}>{fmtBRLPlan(dreamPlan.reducedInstallment)}/mês</p>
+                        </div>
+                        <div style={{ textAlign: 'right' }}>
+                          <span style={{ fontSize: 16 }}>{INSTALLMENT_STATUS_META[dreamPlan.reducedInstallmentStatus].emoji}</span>
+                          <p style={{ fontSize: 10, color: INSTALLMENT_STATUS_META[dreamPlan.reducedInstallmentStatus].color, fontWeight: 500, margin: '2px 0 0' }}>
+                            {INSTALLMENT_STATUS_META[dreamPlan.reducedInstallmentStatus].label}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  <p style={{ fontSize: 10, color: C.amberDark, margin: '8px 0 0', lineHeight: 1.4, opacity: 0.8 }}>
+                    ⚠️ Simulação inicial — valores e condições estão sujeitos a análise. Não representa aprovação, crédito ou contemplação.
+                  </p>
+                </div>
+              ) : dreamPlan.target > 0 ? (
+                <p style={{ fontSize: 10, color: C.amberDark, margin: '10px 0 0', fontStyle: 'italic', opacity: 0.8 }}>
+                  Plano sugerido ainda não configurado para este sonho.
+                </p>
+              ) : null}
             </div>
           )}
         </div>

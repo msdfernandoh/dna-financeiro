@@ -5,7 +5,8 @@ import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { C } from '@/app/components/ui'
 import {
   calculateDreamPlan, formatDreamSubtype, fmtBRLPlan,
-  GOAL_STATUS_META, type DreamPlan,
+  GOAL_STATUS_META, INSTALLMENT_STATUS_META,
+  type DreamPlan, type PlanSettings,
 } from '@/lib/dreamPlan'
 
 // ── Dados dos sonhos ──────────────────────────────────────────────────────────
@@ -160,6 +161,32 @@ export default async function DiagnosticoPage({ params }: Props) {
     primaryDream = data
   } catch { /* lead antigo sem dreams — ignora */ }
 
+  // 3c. Buscar configuração de plano sugerido (dream_plan_settings)
+  let planSettings: PlanSettings | null = null
+  if (primaryDream) {
+    try {
+      const { data: psRows } = await createServerSupabaseClient()
+        .from('dream_plan_settings')
+        .select('dream_subtype, term_months, full_installment_amount, reduced_installment_amount, full_installment_rate, reduced_installment_rate')
+        .eq('dream_type', primaryDream.dream_type)
+        .eq('active', true)
+        .is('deleted_at', null)
+        .limit(10)
+      const row = (psRows ?? []).find(r => r.dream_subtype === primaryDream!.dream_subtype)
+        ?? (psRows ?? []).find(r => r.dream_subtype === null)
+        ?? null
+      if (row) {
+        planSettings = {
+          term_months:                row.term_months,
+          full_installment_amount:    row.full_installment_amount,
+          reduced_installment_amount: row.reduced_installment_amount,
+          full_installment_rate:      row.full_installment_rate,
+          reduced_installment_rate:   row.reduced_installment_rate,
+        }
+      }
+    } catch { /* graceful — mantém cálculo linear */ }
+  }
+
   // 4. Cálculos financeiros
   const income       = lead.monthly_income   ?? 0
   const expenses     = lead.monthly_expenses ?? 0
@@ -175,7 +202,7 @@ export default async function DiagnosticoPage({ params }: Props) {
 
   // Plano do sonho (null se não tem sonho cadastrado ou sobra inválida)
   const plan: DreamPlan | null = primaryDream
-    ? calculateDreamPlan(primaryDream.target_amount, sobra)
+    ? calculateDreamPlan(primaryDream.target_amount, sobra, planSettings)
     : null
 
   const recomendacao = sobra < 0
@@ -334,6 +361,63 @@ export default async function DiagnosticoPage({ params }: Props) {
                   <strong>{plan.bestMonths} meses</strong>
                 </span>
               </div>
+            )}
+
+            {/* ── Plano sugerido (dream_plan_settings) ── */}
+            {plan.hasPlanSettings && (plan.fullInstallment !== null || plan.reducedInstallment !== null) ? (
+              <div style={{ marginTop: 10, borderTop: `0.5px solid ${C.border}`, paddingTop: 10 }}>
+                <p style={{ fontSize: 11, fontWeight: 600, color: C.text, margin: '0 0 8px', textTransform: 'uppercase', letterSpacing: 0.4 }}>
+                  💡 Plano sugerido
+                  {plan.suggestedTerm ? ` · ${plan.suggestedTerm} meses` : ''}
+                </p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {plan.fullInstallment !== null && plan.fullInstallmentStatus !== null && (
+                    <div style={{
+                      background: INSTALLMENT_STATUS_META[plan.fullInstallmentStatus].bg,
+                      borderRadius: 10, padding: '8px 12px',
+                      display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
+                    }}>
+                      <div>
+                        <p style={{ fontSize: 10, fontWeight: 600, color: INSTALLMENT_STATUS_META[plan.fullInstallmentStatus].color, margin: '0 0 1px', textTransform: 'uppercase', letterSpacing: 0.3 }}>Parcela cheia</p>
+                        <p style={{ fontSize: 15, fontWeight: 700, color: INSTALLMENT_STATUS_META[plan.fullInstallmentStatus].color, margin: 0 }}>
+                          {fmtBRLPlan(plan.fullInstallment)}/mês
+                        </p>
+                      </div>
+                      <span style={{ fontSize: 13 }}>{INSTALLMENT_STATUS_META[plan.fullInstallmentStatus].emoji}</span>
+                      <span style={{ fontSize: 10, color: INSTALLMENT_STATUS_META[plan.fullInstallmentStatus].color, fontWeight: 500, textAlign: 'right', flex: 1 }}>
+                        {INSTALLMENT_STATUS_META[plan.fullInstallmentStatus].label}
+                      </span>
+                    </div>
+                  )}
+                  {plan.reducedInstallment !== null && plan.reducedInstallmentStatus !== null && (
+                    <div style={{
+                      background: INSTALLMENT_STATUS_META[plan.reducedInstallmentStatus].bg,
+                      borderRadius: 10, padding: '8px 12px',
+                      display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
+                    }}>
+                      <div>
+                        <p style={{ fontSize: 10, fontWeight: 600, color: INSTALLMENT_STATUS_META[plan.reducedInstallmentStatus].color, margin: '0 0 1px', textTransform: 'uppercase', letterSpacing: 0.3 }}>Parcela reduzida</p>
+                        <p style={{ fontSize: 15, fontWeight: 700, color: INSTALLMENT_STATUS_META[plan.reducedInstallmentStatus].color, margin: 0 }}>
+                          {fmtBRLPlan(plan.reducedInstallment)}/mês
+                        </p>
+                      </div>
+                      <span style={{ fontSize: 13 }}>{INSTALLMENT_STATUS_META[plan.reducedInstallmentStatus].emoji}</span>
+                      <span style={{ fontSize: 10, color: INSTALLMENT_STATUS_META[plan.reducedInstallmentStatus].color, fontWeight: 500, textAlign: 'right', flex: 1 }}>
+                        {INSTALLMENT_STATUS_META[plan.reducedInstallmentStatus].label}
+                      </span>
+                    </div>
+                  )}
+                </div>
+                <p style={{ fontSize: 10, color: C.textSec, margin: '8px 0 0', lineHeight: 1.4 }}>
+                  ⚠️ Simulação inicial — valores e condições estão sujeitos a análise. Não representa aprovação, crédito ou contemplação.
+                </p>
+              </div>
+            ) : (
+              plan.target > 0 && (
+                <p style={{ fontSize: 10, color: C.textSec, margin: '10px 0 0', fontStyle: 'italic' }}>
+                  Plano sugerido ainda não configurado para este sonho.
+                </p>
+              )
             )}
           </div>
         ) : (
