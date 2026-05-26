@@ -5,6 +5,7 @@ import { C } from '@/app/components/ui'
 import { PerguntaDia }       from './PerguntaDia'
 import { FeaturedOppCard }   from './_FeaturedOppCard'
 import { LeadBottomNav }     from '@/app/components/LeadBottomNav'
+import { InstallAppCard }    from '@/app/components/InstallAppCard'
 import {
   calculateDreamPlan, formatDreamSubtype, fmtBRLPlan,
   GOAL_STATUS_META, INSTALLMENT_STATUS_META,
@@ -923,6 +924,9 @@ export default async function PainelPage({ params }: Props) {
           ctaUrl={featuredCtaUrl}
           ctaLabel={featuredCtaLabel}
         />
+
+        {/* ── Instalar como app ── */}
+        <InstallAppCard />
 
         {/* ── Conquista desbloqueada ── */}
         <div style={{

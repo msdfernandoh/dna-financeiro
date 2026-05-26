@@ -1,11 +1,53 @@
-import type { Metadata } from 'next'
+import type { Metadata, Viewport } from 'next'
 import './globals.css'
+import { ServiceWorkerRegistrar } from '@/app/components/ServiceWorkerRegistrar'
 
-export const metadata: Metadata = {
-  title: 'DNA Financeiro',
-  description: 'Seu consultor financeiro de IA para organizar sua vida e conquistar seus sonhos.',
+// ── Viewport (separado de Metadata no Next.js 14+) ────────────────────────────
+export const viewport: Viewport = {
+  themeColor:    '#7F77DD',
+  width:         'device-width',
+  initialScale:  1,
+  minimumScale:  1,
+  viewportFit:   'cover',
 }
 
+// ── Metadata global ───────────────────────────────────────────────────────────
+export const metadata: Metadata = {
+  title: {
+    default:  'DNA Financeiro',
+    template: '%s | DNA Financeiro',
+  },
+  description: 'Consultor financeiro com IA para controle de despesas, investimentos, educação financeira e realização de sonhos.',
+
+  // Manifest → habilita instalação PWA
+  manifest: '/manifest.webmanifest',
+
+  // Apple Web App (iOS Safari)
+  appleWebApp: {
+    capable:         true,
+    title:           'DNA',
+    statusBarStyle:  'default',
+  },
+
+  // Evita que o iOS ligue para números detectados na tela
+  formatDetection: { telephone: false },
+
+  // Ícones (favicon + apple-touch-icon)
+  icons: {
+    icon:  [{ url: '/pwa-icon?size=192', type: 'image/png', sizes: '192x192' }],
+    apple: [{ url: '/pwa-icon?size=192', type: 'image/png', sizes: '192x192' }],
+  },
+
+  // Open Graph básico
+  openGraph: {
+    title:       'DNA Financeiro',
+    description: 'Consultor financeiro com IA para controle de despesas, investimentos e realização de sonhos.',
+    type:        'website',
+    locale:      'pt_BR',
+  },
+}
+
+// ── Root Layout ───────────────────────────────────────────────────────────────
 export default function RootLayout({
   children,
 }: {
@@ -21,7 +63,11 @@ export default function RootLayout({
           rel="stylesheet"
         />
       </head>
-      <body>{children}</body>
+      <body>
+        {children}
+        {/* Registra o Service Worker apenas no cliente, silenciosamente */}
+        <ServiceWorkerRegistrar />
+      </body>
     </html>
   )
 }
