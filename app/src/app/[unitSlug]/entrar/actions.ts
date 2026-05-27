@@ -219,5 +219,5 @@ export async function verificarCodigo(
     path:     '/',
   })
 
-  redirect(`/${unitSlug}/painel`)
+  redirect(`/${unitSlug}/inicio`)
 }

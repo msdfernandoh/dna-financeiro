@@ -87,68 +87,70 @@ export function DespesasHistoricoClient({ unitSlug, expenses, deleteAction, expe
           }}>
             {/* ── Linha principal ── */}
             <div style={{
-              display: 'flex', alignItems: 'center', gap: 10,
-              padding: '12px 14px',
+              display: 'flex', alignItems: 'center', gap: 12,
+              padding: '14px 16px',
             }}>
-              {/* Ícone da categoria */}
+              {/* Ícone maior */}
               <div style={{
-                width: 36, height: 36, borderRadius: 10,
-                background: isConfirm ? '#FEE2E2' : C.bgApp,
+                width: 44, height: 44, borderRadius: 13,
+                background: isConfirm ? '#FEE2E2' : C.coralBg,
                 flexShrink: 0, display: 'flex', alignItems: 'center',
-                justifyContent: 'center', fontSize: 17,
+                justifyContent: 'center', fontSize: 22,
               }}>
                 {cat.emoji}
               </div>
 
               {/* Dados da despesa */}
               <div style={{ flex: 1, minWidth: 0 }}>
-                <p style={{ margin: 0, fontSize: 13, fontWeight: 500, color: C.text }}>
+                <p style={{ margin: 0, fontSize: 14, fontWeight: 600, color: C.text }}>
                   {cat.label}
                 </p>
-                <p style={{ margin: '1px 0 0', fontSize: 11, color: C.textSec }}>
+                <p style={{ margin: '2px 0 0', fontSize: 12, color: C.textSec }}>
                   {fmtDate(exp.expense_date)}
                   {exp.description ? ` · ${exp.description}` : ''}
                 </p>
               </div>
 
-              {/* Valor */}
+              {/* Valor maior e destacado */}
               <span style={{
-                fontSize: 14, fontWeight: 700, color: C.coralDark,
+                fontSize: 17, fontWeight: 800, color: C.coralDark,
                 flexShrink: 0,
               }}>
                 -{fmtBRL(exp.amount)}
               </span>
             </div>
 
-            {/* ── Botões de ação ── */}
+            {/* ── Botões de ação — maiores e coloridos ── */}
             {!isConfirm ? (
               <div style={{
                 display: 'flex', gap: 0,
                 borderTop: `0.5px solid ${C.border}`,
               }}>
-                {/* Editar */}
+                {/* Editar — roxo */}
                 <a
                   href={`/${unitSlug}/despesas/${exp.id}/editar`}
                   style={{
                     flex: 1, textDecoration: 'none',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    gap: 4, padding: '8px',
-                    fontSize: 12, fontWeight: 500, color: C.purple,
+                    gap: 6, padding: '13px 8px',
+                    fontSize: 13, fontWeight: 700, color: C.purpleDeep,
+                    background: C.purpleBg,
                     borderRight: `0.5px solid ${C.border}`,
                   }}
                 >
                   ✏️ Editar
                 </a>
 
-                {/* Excluir */}
+                {/* Excluir — coral */}
                 <button
                   type="button"
                   onClick={() => setConfirmId(exp.id)}
                   style={{
-                    flex: 1, border: 'none', background: 'none', cursor: 'pointer',
+                    flex: 1, border: 'none', cursor: 'pointer',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    gap: 4, padding: '8px',
-                    fontSize: 12, fontWeight: 500, color: C.coralDark,
+                    gap: 6, padding: '13px 8px',
+                    fontSize: 13, fontWeight: 700, color: '#fff',
+                    background: C.coral,
                     fontFamily: 'inherit',
                   }}
                 >
@@ -159,11 +161,11 @@ export function DespesasHistoricoClient({ unitSlug, expenses, deleteAction, expe
               /* ── Confirmação de exclusão ── */
               <div style={{
                 borderTop: `0.5px solid #FCA5A5`,
-                padding: '10px 14px',
+                padding: '12px 16px',
                 background: '#FFF7F7',
               }}>
-                <p style={{ margin: '0 0 8px', fontSize: 12, color: C.coralDark, fontWeight: 500 }}>
-                  Tem certeza que deseja excluir esta despesa?
+                <p style={{ margin: '0 0 10px', fontSize: 13, color: C.coralDark, fontWeight: 600 }}>
+                  Tem certeza? Esta despesa será removida.
                 </p>
                 <div style={{ display: 'flex', gap: 8 }}>
                   {/* Cancelar */}
@@ -172,16 +174,16 @@ export function DespesasHistoricoClient({ unitSlug, expenses, deleteAction, expe
                     onClick={() => setConfirmId(null)}
                     style={{
                       flex: 1, border: `0.5px solid ${C.border}`,
-                      background: '#fff', borderRadius: 8,
-                      padding: '8px', cursor: 'pointer',
-                      fontSize: 12, fontWeight: 500, color: C.textSec,
+                      background: '#fff', borderRadius: 10,
+                      padding: '12px', cursor: 'pointer',
+                      fontSize: 13, fontWeight: 600, color: C.textSec,
                       fontFamily: 'inherit',
                     }}
                   >
                     Cancelar
                   </button>
 
-                  {/* Confirmar exclusão — form com server action */}
+                  {/* Confirmar exclusão */}
                   <form
                     action={async (fd) => {
                       setDeletingId(exp.id)
@@ -196,9 +198,9 @@ export function DespesasHistoricoClient({ unitSlug, expenses, deleteAction, expe
                       style={{
                         width: '100%', border: 'none',
                         background: isDeleting ? '#FDA4A4' : C.coral,
-                        color: '#fff', borderRadius: 8,
-                        padding: '8px', cursor: isDeleting ? 'not-allowed' : 'pointer',
-                        fontSize: 12, fontWeight: 600,
+                        color: '#fff', borderRadius: 10,
+                        padding: '12px', cursor: isDeleting ? 'not-allowed' : 'pointer',
+                        fontSize: 13, fontWeight: 700,
                         fontFamily: 'inherit',
                       }}
                     >

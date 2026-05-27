@@ -146,24 +146,22 @@ export default async function DespesasPage({ params, searchParams }: Props) {
         padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 12,
         position: 'sticky', top: 0, zIndex: 10,
       }}>
-        <a href={`/${unitSlug}/painel`} style={{
-          width: 34, height: 34, borderRadius: 10, background: C.bgApp,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          textDecoration: 'none', fontSize: 18, flexShrink: 0,
-          border: `0.5px solid ${C.border}`,
-        }}>←</a>
+        <a href={`/${unitSlug}/inicio`} style={{
+          display: 'flex', alignItems: 'center', gap: 4,
+          background: C.bgApp, border: `0.5px solid ${C.border}`,
+          borderRadius: 8, padding: '6px 10px',
+          fontSize: 11, fontWeight: 500, color: C.textSec,
+          textDecoration: 'none', flexShrink: 0, whiteSpace: 'nowrap',
+        }}>← Meu Dia</a>
         <div style={{ flex: 1 }}>
-          <p style={{ margin: 0, fontSize: 14, fontWeight: 600, color: C.text }}>
-            💸 Minhas Despesas
-          </p>
-          <p style={{ margin: 0, fontSize: 11, color: C.textSec }}>
-            Histórico e controle
+          <p style={{ margin: 0, fontSize: 13, fontWeight: 600, color: C.text }}>
+            💸 Histórico de Despesas
           </p>
         </div>
         <a href={`/${unitSlug}/despesas/nova`} style={{
           background: C.coral, color: '#fff',
-          borderRadius: 10, padding: '7px 14px',
-          fontSize: 12, fontWeight: 600, textDecoration: 'none',
+          borderRadius: 10, padding: '9px 16px',
+          fontSize: 13, fontWeight: 700, textDecoration: 'none',
           whiteSpace: 'nowrap',
         }}>
           + Lançar

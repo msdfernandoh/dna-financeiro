@@ -147,11 +147,11 @@ export default async function InvestimentosPage({ params, searchParams }: Props)
           <div style={{ fontWeight: 600, fontSize: 14, color: C.greenDark }}>Estou me pagando</div>
           <div style={{ fontSize: 11, color: C.textSec }}>{lead.city ?? unitSlug}</div>
         </div>
-        <a href={`/${unitSlug}/painel`} style={{
+        <a href={`/${unitSlug}/inicio`} style={{
           marginLeft: 'auto', fontSize: 12, color: C.textSec,
-          textDecoration: 'none', padding: '5px 10px',
-          border: `0.5px solid ${C.border}`, borderRadius: 8,
-        }}>← Painel</a>
+          textDecoration: 'none', padding: '6px 12px',
+          border: `0.5px solid ${C.border}`, borderRadius: 8, fontWeight: 500,
+        }}>← Meu Dia</a>
       </header>
 
       <main style={{ maxWidth: 480, margin: '0 auto', padding: '16px 16px 80px' }}>

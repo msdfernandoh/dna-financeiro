@@ -389,25 +389,26 @@ export default async function PainelPage({ params }: Props) {
       {/* ── Header ── */}
       <header style={{
         background: '#fff', borderBottom: `0.5px solid ${C.purpleBg}`,
-        padding: '12px 20px', display: 'flex', alignItems: 'center', gap: 10,
+        padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 10,
         position: 'sticky', top: 0, zIndex: 10,
       }}>
+        <a href={`/${unitSlug}/inicio`} style={{
+          display: 'flex', alignItems: 'center', gap: 4,
+          background: C.bgApp, border: `0.5px solid ${C.border}`,
+          borderRadius: 8, padding: '5px 10px',
+          fontSize: 11, fontWeight: 500, color: C.textSec,
+          textDecoration: 'none', flexShrink: 0,
+        }}>← Meu Dia</a>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontWeight: 600, fontSize: 13, color: C.purple }}>Painel completo</div>
+          <div style={{ fontSize: 10, color: C.textSec }}>{lead.city ?? unitSlug}</div>
+        </div>
         <div style={{
-          width: 34, height: 34, borderRadius: 10, background: C.purpleBg,
-          display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 17,
-        }}>🧬</div>
-        <div>
-          <div style={{ fontWeight: 600, fontSize: 14, color: C.purple }}>DNA Financeiro</div>
-          <div style={{ fontSize: 11, color: C.textSec }}>{lead.city ?? unitSlug}</div>
-        </div>
-        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
-          <div style={{
-            width: 34, height: 34, borderRadius: '50%',
-            background: C.purple, color: '#fff',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 12, fontWeight: 600, flexShrink: 0,
-          }}>{avatar}</div>
-        </div>
+          width: 32, height: 32, borderRadius: '50%',
+          background: C.purple, color: '#fff',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          fontSize: 11, fontWeight: 600, flexShrink: 0,
+        }}>{avatar}</div>
       </header>
 
       <main style={{ maxWidth: 480, margin: '0 auto', padding: '16px 16px 80px' }}>

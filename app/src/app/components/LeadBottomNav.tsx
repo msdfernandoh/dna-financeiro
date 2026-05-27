@@ -17,7 +17,7 @@ import { C } from '@/app/components/ui'
 // ── Itens fixos de navegação ──────────────────────────────────────────────────
 
 const NAV_BASE = [
-  { key: 'painel',        href: 'painel',       emoji: '🏠', label: 'Painel'    },
+  { key: 'inicio',        href: 'inicio',        emoji: '🏠', label: 'Início'    },
   { key: 'despesas',      href: 'despesas/nova', emoji: '💸', label: 'Despesas'  },
   { key: 'investimentos', href: 'investimentos', emoji: '💚', label: 'Investir'  },
   { key: 'oportunidades', href: 'oportunidades', emoji: '🎯', label: 'Oport.'   },

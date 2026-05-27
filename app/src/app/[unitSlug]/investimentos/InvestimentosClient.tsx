@@ -477,35 +477,35 @@ export function InvestimentosClient({
                   {/* ── Linha principal ── */}
                   <div style={{
                     display: 'flex', alignItems: 'flex-start', gap: 12,
-                    padding: '12px 14px',
+                    padding: '14px 16px',
                   }}>
                     <div style={{
-                      width: 38, height: 38, borderRadius: 11,
+                      width: 44, height: 44, borderRadius: 13,
                       background: isConfirm ? '#DCFCE7' : C.greenBg,
                       flexShrink: 0, display: 'flex', alignItems: 'center',
-                      justifyContent: 'center', fontSize: 18, marginTop: 1,
+                      justifyContent: 'center', fontSize: 22, marginTop: 1,
                     }}>
                       {typeInfo?.emoji ?? '💰'}
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                        <span style={{ fontSize: 13, fontWeight: 500, color: C.text }}>
+                        <span style={{ fontSize: 14, fontWeight: 600, color: C.text }}>
                           {typeInfo?.label ?? inv.investment_type}
                         </span>
                         {inv.is_recurring && (
                           <span style={{
-                            fontSize: 9, fontWeight: 700, padding: '1px 6px', borderRadius: 99,
+                            fontSize: 9, fontWeight: 700, padding: '2px 7px', borderRadius: 99,
                             background: C.purpleBg, color: C.purpleDeep,
                           }}>🔄 RECORRENTE</span>
                         )}
                       </div>
-                      <p style={{ fontSize: 11, color: C.textSec, margin: '2px 0 0' }}>
+                      <p style={{ fontSize: 12, color: C.textSec, margin: '3px 0 0' }}>
                         {fmtDate(inv.investment_date)}
                         {inv.description ? ` · ${inv.description}` : ''}
                       </p>
                       {valorDif !== null && (
                         <p style={{
-                          fontSize: 10, margin: '2px 0 0',
+                          fontSize: 11, margin: '3px 0 0',
                           color: valorDif >= 0 ? C.greenDark : C.coralDark,
                         }}>
                           Valor atual: {fmtBRL(inv.current_value!)}
@@ -513,17 +513,17 @@ export function InvestimentosClient({
                         </p>
                       )}
                       {inv.expected_return !== null && (
-                        <p style={{ fontSize: 10, color: C.textTer, margin: '1px 0 0' }}>
+                        <p style={{ fontSize: 11, color: C.textTer, margin: '2px 0 0' }}>
                           Retorno esperado: {inv.expected_return}% a.a.
                         </p>
                       )}
                     </div>
-                    <span style={{ fontSize: 14, fontWeight: 700, color: C.greenDark, flexShrink: 0, paddingTop: 2 }}>
+                    <span style={{ fontSize: 17, fontWeight: 800, color: C.greenDark, flexShrink: 0, paddingTop: 2 }}>
                       +{fmtBRL(inv.amount)}
                     </span>
                   </div>
 
-                  {/* ── Botões de ação ── */}
+                  {/* ── Botões de ação — maiores e coloridos ── */}
                   {!isConfirm ? (
                     <div style={{
                       display: 'flex',
@@ -534,8 +534,9 @@ export function InvestimentosClient({
                         style={{
                           flex: 1, textDecoration: 'none',
                           display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          gap: 4, padding: '8px',
-                          fontSize: 12, fontWeight: 500, color: C.purple,
+                          gap: 6, padding: '13px 8px',
+                          fontSize: 13, fontWeight: 700, color: C.purpleDeep,
+                          background: C.purpleBg,
                           borderRight: `0.5px solid ${C.border}`,
                         }}
                       >
@@ -545,10 +546,11 @@ export function InvestimentosClient({
                         type="button"
                         onClick={() => setConfirmDeleteId(inv.id)}
                         style={{
-                          flex: 1, border: 'none', background: 'none', cursor: 'pointer',
+                          flex: 1, border: 'none', cursor: 'pointer',
                           display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          gap: 4, padding: '8px',
-                          fontSize: 12, fontWeight: 500, color: C.coralDark,
+                          gap: 6, padding: '13px 8px',
+                          fontSize: 13, fontWeight: 700, color: '#fff',
+                          background: C.coral,
                           fontFamily: 'inherit',
                         }}
                       >
@@ -559,11 +561,11 @@ export function InvestimentosClient({
                     /* ── Confirmação de exclusão ── */
                     <div style={{
                       borderTop: `0.5px solid ${C.greenDark}30`,
-                      padding: '10px 14px',
+                      padding: '12px 16px',
                       background: '#F0FDF4',
                     }}>
-                      <p style={{ margin: '0 0 8px', fontSize: 12, color: C.greenDark, fontWeight: 500 }}>
-                        Tem certeza que deseja excluir este investimento?
+                      <p style={{ margin: '0 0 10px', fontSize: 13, color: C.greenDark, fontWeight: 600 }}>
+                        Tem certeza? Este aporte será removido.
                       </p>
                       <div style={{ display: 'flex', gap: 8 }}>
                         <button
@@ -571,9 +573,9 @@ export function InvestimentosClient({
                           onClick={() => setConfirmDeleteId(null)}
                           style={{
                             flex: 1, border: `0.5px solid ${C.border}`,
-                            background: '#fff', borderRadius: 8,
-                            padding: '8px', cursor: 'pointer',
-                            fontSize: 12, fontWeight: 500, color: C.textSec,
+                            background: '#fff', borderRadius: 10,
+                            padding: '12px', cursor: 'pointer',
+                            fontSize: 13, fontWeight: 600, color: C.textSec,
                             fontFamily: 'inherit',
                           }}
                         >
@@ -592,11 +594,11 @@ export function InvestimentosClient({
                             disabled={isDeleting}
                             style={{
                               width: '100%', border: 'none',
-                              background: isDeleting ? C.greenBg : C.green,
-                              color: isDeleting ? C.greenDark : '#fff',
-                              borderRadius: 8, padding: '8px',
+                              background: isDeleting ? C.coralBg : C.coral,
+                              color: isDeleting ? C.coralDark : '#fff',
+                              borderRadius: 10, padding: '12px',
                               cursor: isDeleting ? 'not-allowed' : 'pointer',
-                              fontSize: 12, fontWeight: 600,
+                              fontSize: 13, fontWeight: 700,
                               fontFamily: 'inherit',
                             }}
                           >

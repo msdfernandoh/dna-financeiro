@@ -51,7 +51,7 @@ export default async function EntrarPage({ params }: Props) {
           .eq('unit_slug', unitSlug)
           .is('deleted_at', null)
           .single()
-        if (lead) redirect(`/${unitSlug}/painel`)
+        if (lead) redirect(`/${unitSlug}/inicio`)
       }
     } catch { /* cookie inválido — exibe formulário normalmente */ }
   }
