@@ -298,7 +298,7 @@ export default async function InicioPage({ params }: Props) {
           </a>
 
           {/* Ver meu sonho */}
-          <a href={`/${unitSlug}/painel`} style={{
+          <a href={`/${unitSlug}/sonho`} style={{
             background: C.amberBg, borderRadius: 16,
             border: `0.5px solid ${C.amber}30`,
             padding: '16px 14px', textDecoration: 'none',
@@ -459,7 +459,7 @@ export default async function InicioPage({ params }: Props) {
             )}
 
             {/* CTA grande */}
-            <a href={`/${unitSlug}/painel`} style={{
+            <a href={`/${unitSlug}/sonho`} style={{
               display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
               background: C.amber, color: '#fff',
               borderRadius: 13, padding: '14px',
