@@ -178,11 +178,10 @@ export function EditDreamForm({ dream, unitSlug, updateAction }: Props) {
           Valor-alvo (R$) *
         </label>
         <input
-          type="number"
+          type="text"
+          inputMode="decimal"
           name="target_amount"
-          defaultValue={Math.round(dream.target_amount)}
-          min={1}
-          step={1}
+          defaultValue={dream.target_amount > 0 ? String(Math.round(dream.target_amount)) : ''}
           required
           style={{
             width: '100%', boxSizing: 'border-box',
@@ -193,7 +192,7 @@ export function EditDreamForm({ dream, unitSlug, updateAction }: Props) {
             background: '#fff', outline: 'none',
             fontFamily: 'inherit',
           }}
-          placeholder="Ex: 50000"
+          placeholder="Ex: 50000 ou 50.000"
         />
         {state?.success === false && state.field === 'target_amount' && (
           <p style={{ margin: '4px 0 0', fontSize: 11, color: C.coralDark }}>{state.error}</p>
@@ -229,11 +228,10 @@ export function EditDreamForm({ dream, unitSlug, updateAction }: Props) {
           Quanto você já separa por mês? (R$)
         </label>
         <input
-          type="number"
+          type="text"
+          inputMode="decimal"
           name="monthly_contribution"
           defaultValue={fmtNum(dream.monthly_contribution)}
-          min={0}
-          step={1}
           style={{
             width: '100%', boxSizing: 'border-box',
             border: `1px solid ${C.border}`, borderRadius: 10, padding: '14px',
@@ -250,11 +248,10 @@ export function EditDreamForm({ dream, unitSlug, updateAction }: Props) {
           Quanto você já tem guardado? (R$)
         </label>
         <input
-          type="number"
+          type="text"
+          inputMode="decimal"
           name="saved_amount"
           defaultValue={fmtNum(dream.saved_amount)}
-          min={0}
-          step={1}
           style={{
             width: '100%', boxSizing: 'border-box',
             border: `1px solid ${C.border}`, borderRadius: 10, padding: '14px',

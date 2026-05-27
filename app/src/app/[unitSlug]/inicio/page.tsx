@@ -464,8 +464,18 @@ export default async function InicioPage({ params }: Props) {
               background: C.amber, color: '#fff',
               borderRadius: 13, padding: '14px',
               fontSize: 14, fontWeight: 700, textDecoration: 'none',
+              marginBottom: 6,
             }}>
               🎯 Ver caminhos para meu sonho
+            </a>
+            <a href={`/${unitSlug}/sonho/editar`} style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+              background: '#fff', color: C.text,
+              borderRadius: 13, padding: '11px',
+              fontSize: 13, fontWeight: 600, textDecoration: 'none',
+              border: `0.5px solid ${C.border}`,
+            }}>
+              ✏️ Refinar meu sonho
             </a>
           </div>
         ) : (
@@ -480,15 +490,24 @@ export default async function InicioPage({ params }: Props) {
               Qual é o seu sonho financeiro?
             </p>
             <p style={{ margin: '0 0 12px', fontSize: 12, color: C.textSec }}>
-              Complete o diagnóstico para receber um plano personalizado.
+              Defina sua meta e veja os caminhos para realizá-la.
             </p>
+            <a href={`/${unitSlug}/sonho/trocar`} style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+              background: C.amber, color: '#fff',
+              borderRadius: 12, padding: '12px 20px',
+              fontSize: 13, fontWeight: 700, textDecoration: 'none',
+              marginBottom: 6,
+            }}>
+              🎯 Criar meu sonho agora
+            </a>
             <a href={`/${unitSlug}/dna`} style={{
               display: 'inline-flex', alignItems: 'center', gap: 6,
-              background: C.amberBg, color: C.amberDark,
-              borderRadius: 12, padding: '12px 20px',
-              fontSize: 13, fontWeight: 600, textDecoration: 'none',
+              background: C.bgApp, color: C.textSec,
+              borderRadius: 12, padding: '10px 16px',
+              fontSize: 12, fontWeight: 500, textDecoration: 'none',
             }}>
-              🎯 Definir meu sonho →
+              🧬 Completar meu DNA →
             </a>
           </div>
         )}

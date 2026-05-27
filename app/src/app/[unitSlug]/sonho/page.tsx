@@ -156,7 +156,8 @@ export default async function SonhoPage({ params, searchParams }: Props) {
 
   const dreamInfo   = primaryDream ? (DREAMS[primaryDream.dream_type] ?? DREAMS.outro) : null
   const plan        = primaryDream ? calculateDreamPlan(primaryDream.target_amount, sobra, planSettings) : null
-  const isConsorcio = primaryDream ? CONSORCIAVEL.has(primaryDream.dream_type) : false
+  const isConsorcio    = primaryDream ? CONSORCIAVEL.has(primaryDream.dream_type) : false
+  const isPlanoPontual = primaryDream ? ['carro', 'caminhao'].includes(primaryDream.dream_type) : false
 
   // Linhas "guardar à vista"
   const savingRows: { months: number; em: number; status: GoalStatus }[] = plan ? [
@@ -301,23 +302,33 @@ export default async function SonhoPage({ params, searchParams }: Props) {
           <>
             <div style={{
               background: '#fff', borderRadius: 16,
-              border: `0.5px dashed ${C.border}`,
-              padding: '36px 20px', marginBottom: 16, textAlign: 'center',
+              border: `0.5px solid ${C.border}`,
+              padding: '24px 20px', marginBottom: 16, textAlign: 'center',
             }}>
               <p style={{ margin: '0 0 8px', fontSize: 36 }}>⭐</p>
               <p style={{ margin: '0 0 6px', fontSize: 15, fontWeight: 700, color: C.text }}>
-                Você ainda não definiu seu sonho
+                Refine seu sonho para ver os caminhos possíveis
               </p>
-              <p style={{ margin: '0 0 20px', fontSize: 13, color: C.textSec, lineHeight: 1.6 }}>
-                Complete o diagnóstico DNA e descubra qual caminho faz mais sentido para você.
+              <p style={{ margin: '0 0 16px', fontSize: 13, color: C.textSec, lineHeight: 1.6 }}>
+                Defina sua meta e descubra como chegar lá — poupança, investimento ou consórcio.
               </p>
-              <a href={`/${unitSlug}/dna`} style={{
-                display: 'inline-flex', alignItems: 'center', gap: 6,
+              <a href={`/${unitSlug}/sonho/trocar`} style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
                 background: C.amber, color: '#fff',
                 borderRadius: 14, padding: '14px 24px',
                 fontSize: 14, fontWeight: 700, textDecoration: 'none',
+                marginBottom: 8,
               }}>
-                🧬 Definir meu sonho agora →
+                🎯 Criar meu sonho agora
+              </a>
+              <a href={`/${unitSlug}/dna`} style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                background: C.bgApp, color: C.textSec,
+                borderRadius: 14, padding: '12px 24px',
+                fontSize: 13, fontWeight: 500, textDecoration: 'none',
+                border: `0.5px solid ${C.border}`,
+              }}>
+                🧬 Completar meu DNA Financeiro
               </a>
             </div>
             <ActionButtons unitSlug={unitSlug} />
@@ -619,6 +630,167 @@ export default async function SonhoPage({ params, searchParams }: Props) {
                     </p>
                   </div>
                 )}
+              </PathCard>
+            )}
+
+            {/* ── Card 5: Plano Pontual (carro e caminhão) ── */}
+            {isPlanoPontual && (
+              <PathCard
+                emoji="📅"
+                title="Plano Pontual"
+                subtitle="Consórcio com contemplação programada — automóvel e caminhão"
+              >
+                {/* Crédito + Prazo */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, marginBottom: 8 }}>
+                  <div style={{ background: C.amberBg, borderRadius: 10, padding: '10px 12px' }}>
+                    <p style={{ margin: '0 0 2px', fontSize: 10, color: C.amberDark, fontWeight: 500 }}>
+                      Crédito desejado
+                    </p>
+                    <p style={{ margin: 0, fontSize: 14, fontWeight: 700, color: C.amberDark }}>
+                      {primaryDream.target_label ?? fmtBRL(primaryDream.target_amount)}
+                    </p>
+                  </div>
+                  <div style={{ background: C.amberBg, borderRadius: 10, padding: '10px 12px' }}>
+                    <p style={{ margin: '0 0 2px', fontSize: 10, color: C.amberDark, fontWeight: 500 }}>
+                      Prazo programado
+                    </p>
+                    <p style={{ margin: 0, fontSize: 14, fontWeight: 700, color: C.amberDark }}>
+                      até 24 meses
+                    </p>
+                  </div>
+                </div>
+
+                {plan.hasPlanSettings && plan.fullInstallment !== null ? (
+                  <>
+                    {/* Parcela estimada */}
+                    <div style={{
+                      background: C.purpleBg, borderRadius: 10,
+                      padding: '10px 14px', marginBottom: 6,
+                      display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                    }}>
+                      <div>
+                        <p style={{ margin: '0 0 1px', fontSize: 10, fontWeight: 600, color: C.purpleDeep }}>
+                          Parcela estimada
+                        </p>
+                        <p style={{ margin: 0, fontSize: 10, color: C.purpleDeep }}>
+                          até o 6º mês
+                        </p>
+                      </div>
+                      <p style={{ margin: 0, fontSize: 16, fontWeight: 800, color: C.purpleDeep }}>
+                        {fmtBRL(plan.fullInstallment)}
+                        <span style={{ fontSize: 10, fontWeight: 500 }}>/mês</span>
+                      </p>
+                    </div>
+
+                    {/* Antecipação / Desembolso */}
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, marginBottom: 8 }}>
+                      <div style={{
+                        background: C.bgApp, borderRadius: 10, padding: '10px 12px',
+                        border: `0.5px solid ${C.border}`,
+                      }}>
+                        <p style={{ margin: '0 0 2px', fontSize: 9, color: C.textSec, fontWeight: 500 }}>
+                          Pago até 6º mês
+                        </p>
+                        <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: C.text }}>
+                          {fmtBRL(plan.fullInstallment * 6)}
+                        </p>
+                      </div>
+                      <div style={{
+                        background: C.bgApp, borderRadius: 10, padding: '10px 12px',
+                        border: `0.5px solid ${C.border}`,
+                      }}>
+                        <p style={{ margin: '0 0 2px', fontSize: 9, color: C.textSec, fontWeight: 500 }}>
+                          Antecipar 18 parcelas
+                        </p>
+                        <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: C.text }}>
+                          {fmtBRL(plan.fullInstallment * 18)}
+                        </p>
+                      </div>
+                      <div style={{
+                        gridColumn: '1 / -1',
+                        background: C.greenBg, borderRadius: 10, padding: '10px 12px',
+                        border: `0.5px solid ${C.greenDark}20`,
+                        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                      }}>
+                        <div>
+                          <p style={{ margin: '0 0 1px', fontSize: 9, fontWeight: 600, color: C.greenDark }}>
+                            Desembolso total estimado
+                          </p>
+                          <p style={{ margin: 0, fontSize: 9, color: C.greenDark }}>
+                            6 parcelas + antecipação de 18
+                          </p>
+                        </div>
+                        <p style={{ margin: 0, fontSize: 15, fontWeight: 800, color: C.greenDark }}>
+                          {fmtBRL(plan.fullInstallment * 24)}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Comparação com juntar sozinho */}
+                    {plan.bestMonths !== null && (
+                      <div style={{
+                        background: C.purpleBg, borderRadius: 10,
+                        padding: '10px 12px', marginBottom: 8,
+                      }}>
+                        <p style={{ margin: '0 0 5px', fontSize: 10, fontWeight: 700, color: C.purpleDeep }}>
+                          📊 Comparação com juntar sozinho
+                        </p>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+                          <div>
+                            <p style={{ margin: '0 0 1px', fontSize: 9, color: C.purpleDeep }}>Poupança direta</p>
+                            <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: C.purpleDeep }}>
+                              {plan.bestMonths} meses
+                            </p>
+                          </div>
+                          <span style={{ fontSize: 14, color: C.purpleDeep }}>→</span>
+                          <div style={{ textAlign: 'right' }}>
+                            <p style={{ margin: '0 0 1px', fontSize: 9, color: C.purpleDeep }}>Plano Pontual</p>
+                            <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: C.purpleDeep }}>
+                              até 24 meses
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  /* Sem planSettings — descrição do produto */
+                  <div style={{ marginBottom: 8 }}>
+                    <div style={{
+                      background: C.purpleBg, borderRadius: 10,
+                      padding: '12px 14px', marginBottom: 6,
+                    }}>
+                      <p style={{ margin: '0 0 6px', fontSize: 11, fontWeight: 700, color: C.purpleDeep }}>
+                        📋 Como funciona
+                      </p>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                        <p style={{ margin: 0, fontSize: 11, color: C.purpleDeep, lineHeight: 1.5 }}>
+                          • Contemplação programada conforme regra do plano
+                        </p>
+                        <p style={{ margin: 0, fontSize: 11, color: C.purpleDeep, lineHeight: 1.5 }}>
+                          • A partir do 6º mês: antecipe 18 parcelas para buscar a carta de crédito
+                        </p>
+                        <p style={{ margin: 0, fontSize: 11, color: C.purpleDeep, lineHeight: 1.5 }}>
+                          • Parcelas e condições a confirmar com o consultor
+                        </p>
+                      </div>
+                    </div>
+                    {plan.bestMonths !== null && (
+                      <div style={{ background: C.amberBg, borderRadius: 10, padding: '10px 12px' }}>
+                        <p style={{ margin: 0, fontSize: 11, color: C.amberDark, lineHeight: 1.5 }}>
+                          Juntando sozinho: <strong>{plan.bestMonths} meses</strong>{' '}
+                          — com Plano Pontual, contemplação programada em{' '}
+                          <strong>até 24 meses</strong>.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                <p style={{ margin: 0, fontSize: 10, color: C.textTer, lineHeight: 1.5 }}>
+                  ⚠️ Simulação inicial. A contemplação programada, antecipação de parcelas, valores e condições
+                  dependem das regras do plano, contrato e administradora.
+                </p>
               </PathCard>
             )}
 

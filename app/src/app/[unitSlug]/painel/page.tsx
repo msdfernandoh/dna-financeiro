@@ -839,6 +839,33 @@ export default async function PainelPage({ params }: Props) {
               </p>
             </>
           )}
+
+          {/* ── Ações do sonho ── */}
+          <div style={{ display: 'flex', gap: 6, marginTop: 10 }}>
+            <a href={`/${unitSlug}/sonho`} style={{
+              flex: 1, background: C.amberBg, border: `0.5px solid ${C.amber}30`,
+              borderRadius: 10, padding: '9px 12px',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+              textDecoration: 'none',
+            }}>
+              <span style={{ fontSize: 14 }}>🎯</span>
+              <span style={{ fontSize: 11, fontWeight: 600, color: C.amberDark }}>Ver caminhos</span>
+            </a>
+            <a
+              href={primaryDream ? `/${unitSlug}/sonho/editar` : `/${unitSlug}/sonho/trocar`}
+              style={{
+                flex: 1, background: '#fff', border: `0.5px solid ${C.border}`,
+                borderRadius: 10, padding: '9px 12px',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                textDecoration: 'none',
+              }}
+            >
+              <span style={{ fontSize: 14 }}>{primaryDream ? '✏️' : '⭐'}</span>
+              <span style={{ fontSize: 11, fontWeight: 600, color: C.text }}>
+                {primaryDream ? 'Refinar sonho' : 'Criar sonho'}
+              </span>
+            </a>
+          </div>
         </div>
 
         {/* ── Despesas recentes ── */}
