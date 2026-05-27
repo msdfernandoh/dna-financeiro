@@ -2,7 +2,7 @@
 
 // =============================================================================
 // Investimentos — Client Component
-// Formulário de lançamento + histórico de aportes
+// Formulário de lançamento + histórico de aportes (com editar e excluir)
 // =============================================================================
 
 import { useActionState, useState } from 'react'
@@ -64,15 +64,21 @@ interface Props {
   investments:            Investment[]
   income:                 number
   showSuccess:            boolean
+  showEdited:             boolean
+  showDeleted:            boolean
   createInvestmentAction: (prev: CreateInvestmentResult | null, fd: FormData) => Promise<CreateInvestmentResult>
+  deleteInvestmentAction: (fd: FormData) => Promise<void>
 }
 
 // ── Componente ────────────────────────────────────────────────────────────────
 
 export function InvestimentosClient({
-  unitSlug, investments, income, showSuccess, createInvestmentAction,
+  unitSlug, investments, income, showSuccess, showEdited, showDeleted,
+  createInvestmentAction, deleteInvestmentAction,
 }: Props) {
   const [state, formAction, isPending] = useActionState(createInvestmentAction, null)
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
+  const [deletingId,      setDeletingId]      = useState<string | null>(null)
 
   const [amountDigits,  setAmount]     = useState('')
   const [selectedType,  setType]       = useState<InvType | ''>('')
@@ -90,7 +96,7 @@ export function InvestimentosClient({
 
   return (
     <>
-      {/* ── Banner de sucesso (aparece após redirect com ?novo=1) ── */}
+      {/* ── Banners de feedback ── */}
       {showSuccess && (
         <div style={{
           background: C.greenBg, borderRadius: 14, padding: '14px 16px',
@@ -104,6 +110,42 @@ export function InvestimentosClient({
             </p>
             <p style={{ margin: 0, fontSize: 11, color: C.greenDark }}>
               Você se pagou. Continue construindo seu futuro. 🌱
+            </p>
+          </div>
+        </div>
+      )}
+
+      {showEdited && (
+        <div style={{
+          background: C.purpleBg, borderRadius: 14, padding: '12px 14px',
+          marginBottom: 14, display: 'flex', gap: 10, alignItems: 'center',
+          border: `0.5px solid ${C.purple}30`,
+        }}>
+          <span style={{ fontSize: 20, flexShrink: 0 }}>✏️</span>
+          <div>
+            <p style={{ margin: '0 0 1px', fontSize: 13, fontWeight: 700, color: C.purple }}>
+              Investimento atualizado
+            </p>
+            <p style={{ margin: 0, fontSize: 11, color: C.purple }}>
+              As alterações foram salvas com sucesso.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {showDeleted && (
+        <div style={{
+          background: C.greenBg, borderRadius: 14, padding: '12px 14px',
+          marginBottom: 14, display: 'flex', gap: 10, alignItems: 'center',
+          border: `0.5px solid ${C.greenDark}30`,
+        }}>
+          <span style={{ fontSize: 20, flexShrink: 0 }}>✅</span>
+          <div>
+            <p style={{ margin: '0 0 1px', fontSize: 13, fontWeight: 700, color: C.greenDark }}>
+              Investimento excluído
+            </p>
+            <p style={{ margin: 0, fontSize: 11, color: C.greenDark }}>
+              O lançamento foi removido com sucesso.
             </p>
           </div>
         </div>
@@ -415,61 +457,155 @@ export function InvestimentosClient({
             </p>
           </div>
         ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
             {investments.map((inv, i) => {
-              const typeInfo = INVESTMENT_TYPES.find(t => t.value === inv.investment_type)
-              const isLast   = i === investments.length - 1
-              const valorDif = inv.current_value !== null && inv.current_value !== inv.amount
+              const typeInfo    = INVESTMENT_TYPES.find(t => t.value === inv.investment_type)
+              const isLast      = i === investments.length - 1
+              const valorDif    = inv.current_value !== null && inv.current_value !== inv.amount
                 ? inv.current_value - inv.amount
                 : null
+              const isConfirm   = confirmDeleteId === inv.id
+              const isDeleting  = deletingId === inv.id
 
               return (
                 <div key={inv.id} style={{
-                  display: 'flex', alignItems: 'flex-start', gap: 12,
-                  paddingBottom: isLast ? 0 : 10,
                   borderBottom: isLast ? 'none' : `0.5px solid ${C.border}`,
+                  background: isConfirm ? '#F0FDF4' : '#fff',
+                  borderRadius: isLast ? '0 0 16px 16px' : 0,
+                  transition: 'background .15s',
                 }}>
+                  {/* ── Linha principal ── */}
                   <div style={{
-                    width: 38, height: 38, borderRadius: 11, background: C.greenBg,
-                    flexShrink: 0, display: 'flex', alignItems: 'center',
-                    justifyContent: 'center', fontSize: 18, marginTop: 1,
+                    display: 'flex', alignItems: 'flex-start', gap: 12,
+                    padding: '12px 14px',
                   }}>
-                    {typeInfo?.emoji ?? '💰'}
-                  </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                      <span style={{ fontSize: 13, fontWeight: 500, color: C.text }}>
-                        {typeInfo?.label ?? inv.investment_type}
-                      </span>
-                      {inv.is_recurring && (
-                        <span style={{
-                          fontSize: 9, fontWeight: 700, padding: '1px 6px', borderRadius: 99,
-                          background: C.purpleBg, color: C.purpleDeep,
-                        }}>🔄 RECORRENTE</span>
+                    <div style={{
+                      width: 38, height: 38, borderRadius: 11,
+                      background: isConfirm ? '#DCFCE7' : C.greenBg,
+                      flexShrink: 0, display: 'flex', alignItems: 'center',
+                      justifyContent: 'center', fontSize: 18, marginTop: 1,
+                    }}>
+                      {typeInfo?.emoji ?? '💰'}
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                        <span style={{ fontSize: 13, fontWeight: 500, color: C.text }}>
+                          {typeInfo?.label ?? inv.investment_type}
+                        </span>
+                        {inv.is_recurring && (
+                          <span style={{
+                            fontSize: 9, fontWeight: 700, padding: '1px 6px', borderRadius: 99,
+                            background: C.purpleBg, color: C.purpleDeep,
+                          }}>🔄 RECORRENTE</span>
+                        )}
+                      </div>
+                      <p style={{ fontSize: 11, color: C.textSec, margin: '2px 0 0' }}>
+                        {fmtDate(inv.investment_date)}
+                        {inv.description ? ` · ${inv.description}` : ''}
+                      </p>
+                      {valorDif !== null && (
+                        <p style={{
+                          fontSize: 10, margin: '2px 0 0',
+                          color: valorDif >= 0 ? C.greenDark : C.coralDark,
+                        }}>
+                          Valor atual: {fmtBRL(inv.current_value!)}
+                          {' '}({valorDif >= 0 ? '+' : ''}{fmtBRL(valorDif)})
+                        </p>
+                      )}
+                      {inv.expected_return !== null && (
+                        <p style={{ fontSize: 10, color: C.textTer, margin: '1px 0 0' }}>
+                          Retorno esperado: {inv.expected_return}% a.a.
+                        </p>
                       )}
                     </div>
-                    <p style={{ fontSize: 11, color: C.textSec, margin: '2px 0 0' }}>
-                      {fmtDate(inv.investment_date)}
-                      {inv.description ? ` · ${inv.description}` : ''}
-                    </p>
-                    {valorDif !== null && (
-                      <p style={{
-                        fontSize: 10, margin: '2px 0 0',
-                        color: valorDif >= 0 ? C.greenDark : C.coralDark,
-                      }}>
-                        Valor atual: {fmtBRL(inv.current_value!)}
-                        {' '}({valorDif >= 0 ? '+' : ''}{fmtBRL(valorDif)})
-                      </p>
-                    )}
-                    {inv.expected_return !== null && (
-                      <p style={{ fontSize: 10, color: C.textTer, margin: '1px 0 0' }}>
-                        Retorno esperado: {inv.expected_return}% a.a.
-                      </p>
-                    )}
+                    <span style={{ fontSize: 14, fontWeight: 700, color: C.greenDark, flexShrink: 0, paddingTop: 2 }}>
+                      +{fmtBRL(inv.amount)}
+                    </span>
                   </div>
-                  <span style={{ fontSize: 14, fontWeight: 700, color: C.greenDark, flexShrink: 0, paddingTop: 2 }}>
-                    +{fmtBRL(inv.amount)}
-                  </span>
+
+                  {/* ── Botões de ação ── */}
+                  {!isConfirm ? (
+                    <div style={{
+                      display: 'flex',
+                      borderTop: `0.5px solid ${C.border}`,
+                    }}>
+                      <a
+                        href={`/${unitSlug}/investimentos/${inv.id}/editar`}
+                        style={{
+                          flex: 1, textDecoration: 'none',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          gap: 4, padding: '8px',
+                          fontSize: 12, fontWeight: 500, color: C.purple,
+                          borderRight: `0.5px solid ${C.border}`,
+                        }}
+                      >
+                        ✏️ Editar
+                      </a>
+                      <button
+                        type="button"
+                        onClick={() => setConfirmDeleteId(inv.id)}
+                        style={{
+                          flex: 1, border: 'none', background: 'none', cursor: 'pointer',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          gap: 4, padding: '8px',
+                          fontSize: 12, fontWeight: 500, color: C.coralDark,
+                          fontFamily: 'inherit',
+                        }}
+                      >
+                        🗑️ Excluir
+                      </button>
+                    </div>
+                  ) : (
+                    /* ── Confirmação de exclusão ── */
+                    <div style={{
+                      borderTop: `0.5px solid ${C.greenDark}30`,
+                      padding: '10px 14px',
+                      background: '#F0FDF4',
+                    }}>
+                      <p style={{ margin: '0 0 8px', fontSize: 12, color: C.greenDark, fontWeight: 500 }}>
+                        Tem certeza que deseja excluir este investimento?
+                      </p>
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        <button
+                          type="button"
+                          onClick={() => setConfirmDeleteId(null)}
+                          style={{
+                            flex: 1, border: `0.5px solid ${C.border}`,
+                            background: '#fff', borderRadius: 8,
+                            padding: '8px', cursor: 'pointer',
+                            fontSize: 12, fontWeight: 500, color: C.textSec,
+                            fontFamily: 'inherit',
+                          }}
+                        >
+                          Cancelar
+                        </button>
+                        <form
+                          action={async (fd) => {
+                            setDeletingId(inv.id)
+                            await deleteInvestmentAction(fd)
+                          }}
+                          style={{ flex: 1 }}
+                        >
+                          <input type="hidden" name="id" value={inv.id} />
+                          <button
+                            type="submit"
+                            disabled={isDeleting}
+                            style={{
+                              width: '100%', border: 'none',
+                              background: isDeleting ? C.greenBg : C.green,
+                              color: isDeleting ? C.greenDark : '#fff',
+                              borderRadius: 8, padding: '8px',
+                              cursor: isDeleting ? 'not-allowed' : 'pointer',
+                              fontSize: 12, fontWeight: 600,
+                              fontFamily: 'inherit',
+                            }}
+                          >
+                            {isDeleting ? 'Excluindo...' : '🗑️ Sim, excluir'}
+                          </button>
+                        </form>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )
             })}

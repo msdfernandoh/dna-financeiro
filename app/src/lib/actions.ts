@@ -24,7 +24,7 @@
 import { cookies, headers } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
-import type { LeadCreateInput, CreateLeadResult, CreateExpenseResult, CreateInvestmentResult, SaveDnaResult, SaveBusinessProfileState, FormErrors } from '@/types/database'
+import type { LeadCreateInput, CreateLeadResult, CreateExpenseResult, CreateInvestmentResult, UpdateExpenseResult, UpdateInvestmentResult, SaveDnaResult, SaveBusinessProfileState, FormErrors } from '@/types/database'
 
 // ---------------------------------------------------------------------------
 // Helper: formata dígitos de telefone para busca de duplicados
@@ -550,6 +550,327 @@ export async function createInvestment(
   }
 
   redirect(`/${unitSlug}/investimentos?novo=1`)
+}
+
+// ---------------------------------------------------------------------------
+// Server Action: Editar despesa
+//
+// SEGURANÇA:
+//   • unitSlug vinculado pelo Server Component — nunca do browser
+//   • lead_id e unit_id resolvidos do cookie + banco — nunca do FormData
+//   • UPDATE filtra por id + lead_id + unit_id → impede edição cross-lead
+// ---------------------------------------------------------------------------
+
+export async function updateExpense(
+  unitSlug: string,
+  _prevState: UpdateExpenseResult | null,
+  formData: FormData,
+): Promise<UpdateExpenseResult> {
+  // 1. Cookie → leadId
+  const cookieStore = await cookies()
+  const token = cookieStore.get('dna_lead_token')?.value
+  if (!token) return { success: false, error: 'Sessão não encontrada. Faça o cadastro novamente.' }
+
+  let leadId: string
+  try {
+    const decoded = Buffer.from(token, 'base64url').toString('utf-8')
+    leadId = decoded.split(':')[0]
+    if (!leadId || !/^[0-9a-f-]{36}$/.test(leadId)) throw new Error('invalid')
+  } catch {
+    return { success: false, error: 'Sessão inválida.' }
+  }
+
+  // 2. Validar ID da despesa (vem do form, mas ownership validada no WHERE)
+  const expenseId = formData.get('id')?.toString().trim() ?? ''
+  if (!expenseId || !/^[0-9a-f-]{36}$/.test(expenseId)) {
+    return { success: false, error: 'Despesa inválida.' }
+  }
+
+  // 3. Validar e sanitizar campos
+  const amountRaw = formData.get('amount')?.toString() ?? ''
+  const amount = parseFloat(amountRaw.replace(/\./g, '').replace(',', '.'))
+  if (isNaN(amount) || amount <= 0) {
+    return { success: false, error: 'Informe um valor maior que zero.', field: 'amount' }
+  }
+  if (amount > 99999.99) {
+    return { success: false, error: 'Valor muito alto. Verifique o que foi digitado.', field: 'amount' }
+  }
+
+  const category = formData.get('category')?.toString().trim() ?? ''
+  if (!VALID_CATEGORIES.includes(category as typeof VALID_CATEGORIES[number])) {
+    return { success: false, error: 'Selecione uma categoria.', field: 'category' }
+  }
+
+  const rawDesc    = formData.get('description')?.toString().trim() ?? ''
+  const description = rawDesc || null
+
+  const expenseDateRaw = formData.get('expense_date')?.toString() ?? ''
+  const expenseDate = /^\d{4}-\d{2}-\d{2}$/.test(expenseDateRaw)
+    ? expenseDateRaw
+    : new Date().toISOString().split('T')[0]
+
+  // 4. Resolver lead + unit_id do banco (valida unit_slug → sem cross-unit)
+  const supabase = createServerSupabaseClient()
+  const { data: lead, error: leadError } = await supabase
+    .from('leads')
+    .select('id, unit_id')
+    .eq('id', leadId)
+    .eq('unit_slug', unitSlug)
+    .is('deleted_at', null)
+    .single()
+
+  if (leadError || !lead) {
+    return { success: false, error: 'Sessão inválida ou expirada. Tente novamente.' }
+  }
+
+  // 5. Atualizar — ownership garantida: id + lead_id + unit_id no WHERE
+  const { data: updated, error: updateError } = await supabase
+    .from('expenses')
+    .update({ amount, category, description, expense_date: expenseDate })
+    .eq('id', expenseId)
+    .eq('lead_id', lead.id)         // ← nunca edita lançamento de outro lead
+    .eq('unit_id', lead.unit_id)    // ← nunca edita de outra unidade
+    .is('deleted_at', null)
+    .select('id')
+    .single()
+
+  if (updateError || !updated) {
+    console.error('[updateExpense]', updateError?.message)
+    return { success: false, error: 'Despesa não encontrada ou sem permissão para editar.' }
+  }
+
+  redirect(`/${unitSlug}/despesas?editado=1`)
+}
+
+// ---------------------------------------------------------------------------
+// Server Action: Excluir despesa (soft delete)
+//
+// SEGURANÇA:
+//   • Soft delete apenas — nunca apaga fisicamente
+//   • WHERE inclui lead_id + unit_id → impede exclusão cross-lead
+// ---------------------------------------------------------------------------
+
+export async function deleteExpense(unitSlug: string, formData: FormData): Promise<void> {
+  // 1. Cookie → leadId
+  const cookieStore = await cookies()
+  const token = cookieStore.get('dna_lead_token')?.value
+  if (!token) { redirect(`/${unitSlug}/despesas`); return }
+
+  let leadId: string
+  try {
+    const decoded = Buffer.from(token, 'base64url').toString('utf-8')
+    leadId = decoded.split(':')[0]
+    if (!leadId || !/^[0-9a-f-]{36}$/.test(leadId)) throw new Error('invalid')
+  } catch {
+    redirect(`/${unitSlug}/despesas`)
+    return
+  }
+
+  // 2. Validar ID (ownership validada no WHERE — ID sozinho não basta)
+  const expenseId = formData.get('id')?.toString().trim() ?? ''
+  if (!expenseId || !/^[0-9a-f-]{36}$/.test(expenseId)) {
+    redirect(`/${unitSlug}/despesas`)
+    return
+  }
+
+  // 3. Resolver lead + unit_id do banco
+  const supabase = createServerSupabaseClient()
+  const { data: lead } = await supabase
+    .from('leads')
+    .select('id, unit_id')
+    .eq('id', leadId)
+    .eq('unit_slug', unitSlug)
+    .is('deleted_at', null)
+    .single()
+
+  if (!lead) { redirect(`/${unitSlug}/despesas`); return }
+
+  // 4. Soft delete — ownership garantida: id + lead_id + unit_id no WHERE
+  await supabase
+    .from('expenses')
+    .update({ deleted_at: new Date().toISOString() })
+    .eq('id', expenseId)
+    .eq('lead_id', lead.id)         // ← nunca exclui lançamento de outro lead
+    .eq('unit_id', lead.unit_id)    // ← nunca exclui de outra unidade
+    .is('deleted_at', null)
+
+  redirect(`/${unitSlug}/despesas?excluido=1`)
+}
+
+// ---------------------------------------------------------------------------
+// Server Action: Editar investimento
+//
+// SEGURANÇA:
+//   • unitSlug vinculado pelo Server Component — nunca do browser
+//   • lead_id e unit_id resolvidos do cookie + banco — nunca do FormData
+//   • Investments e expenses são universos separados — NUNCA somados
+//   • UPDATE filtra por id + lead_id + unit_id → impede edição cross-lead
+// ---------------------------------------------------------------------------
+
+export async function updateInvestment(
+  unitSlug: string,
+  _prevState: UpdateInvestmentResult | null,
+  formData: FormData,
+): Promise<UpdateInvestmentResult> {
+  // 1. Cookie → leadId
+  const cookieStore = await cookies()
+  const token = cookieStore.get('dna_lead_token')?.value
+  if (!token) return { success: false, error: 'Sessão não encontrada. Faça o cadastro novamente.' }
+
+  let leadId: string
+  try {
+    const decoded = Buffer.from(token, 'base64url').toString('utf-8')
+    leadId = decoded.split(':')[0]
+    if (!leadId || !/^[0-9a-f-]{36}$/.test(leadId)) throw new Error('invalid')
+  } catch {
+    return { success: false, error: 'Sessão inválida.' }
+  }
+
+  // 2. Validar ID do investimento
+  const investmentId = formData.get('id')?.toString().trim() ?? ''
+  if (!investmentId || !/^[0-9a-f-]{36}$/.test(investmentId)) {
+    return { success: false, error: 'Investimento inválido.' }
+  }
+
+  // 3. Validar campos
+  const amountRaw = formData.get('amount')?.toString() ?? ''
+  const amount = parseFloat(amountRaw.replace(/\./g, '').replace(',', '.'))
+  if (isNaN(amount) || amount <= 0) {
+    return { success: false, error: 'Informe um valor maior que zero.', field: 'amount' }
+  }
+  if (amount > 9_999_999.99) {
+    return { success: false, error: 'Valor muito alto. Verifique o que foi digitado.', field: 'amount' }
+  }
+
+  const investmentType = formData.get('investment_type')?.toString().trim() ?? ''
+  if (!VALID_INVESTMENT_TYPES.includes(investmentType as typeof VALID_INVESTMENT_TYPES[number])) {
+    return { success: false, error: 'Selecione um tipo de investimento.', field: 'investment_type' }
+  }
+
+  const description = formData.get('description')?.toString().trim() || null
+
+  const investmentDateRaw = formData.get('investment_date')?.toString() ?? ''
+  const investmentDate = /^\d{4}-\d{2}-\d{2}$/.test(investmentDateRaw)
+    ? investmentDateRaw
+    : new Date().toISOString().split('T')[0]
+
+  const isRecurring = formData.get('is_recurring') === 'true'
+
+  const currentValueRaw = formData.get('current_value')?.toString().trim() ?? ''
+  let currentValue: number | null = null
+  if (currentValueRaw) {
+    currentValue = parseFloat(currentValueRaw.replace(/\./g, '').replace(',', '.'))
+    if (isNaN(currentValue) || currentValue < 0) {
+      return { success: false, error: 'Valor atual inválido.', field: 'current_value' }
+    }
+  }
+
+  const expectedReturnRaw = formData.get('expected_return')?.toString().trim() ?? ''
+  let expectedReturn: number | null = null
+  if (expectedReturnRaw) {
+    expectedReturn = parseFloat(expectedReturnRaw.replace(',', '.'))
+    if (isNaN(expectedReturn) || expectedReturn < -100 || expectedReturn > 1000) {
+      return { success: false, error: 'Retorno esperado deve estar entre -100% e 1000%.', field: 'expected_return' }
+    }
+  }
+
+  // 4. Resolver lead + unit_id do banco
+  const supabase = createServerSupabaseClient()
+  const { data: lead, error: leadError } = await supabase
+    .from('leads')
+    .select('id, unit_id')
+    .eq('id', leadId)
+    .eq('unit_slug', unitSlug)
+    .is('deleted_at', null)
+    .single()
+
+  if (leadError || !lead) {
+    return { success: false, error: 'Sessão inválida ou expirada. Tente novamente.' }
+  }
+
+  // 5. Atualizar — ownership garantida: id + lead_id + unit_id no WHERE
+  const updateData: Record<string, unknown> = {
+    investment_type: investmentType,
+    amount,
+    description,
+    investment_date: investmentDate,
+    is_recurring:    isRecurring,
+    current_value:   currentValue,
+    expected_return: expectedReturn,
+  }
+
+  const { data: updated, error: updateError } = await supabase
+    .from('investments')
+    .update(updateData)
+    .eq('id', investmentId)
+    .eq('lead_id', lead.id)         // ← nunca edita lançamento de outro lead
+    .eq('unit_id', lead.unit_id)    // ← nunca edita de outra unidade
+    .is('deleted_at', null)
+    .select('id')
+    .single()
+
+  if (updateError || !updated) {
+    console.error('[updateInvestment]', updateError?.message)
+    return { success: false, error: 'Investimento não encontrado ou sem permissão para editar.' }
+  }
+
+  redirect(`/${unitSlug}/investimentos?editado=1`)
+}
+
+// ---------------------------------------------------------------------------
+// Server Action: Excluir investimento (soft delete)
+//
+// SEGURANÇA:
+//   • Soft delete apenas — nunca apaga fisicamente
+//   • WHERE inclui lead_id + unit_id → impede exclusão cross-lead
+//   • Investments e expenses são universos separados — NUNCA somados
+// ---------------------------------------------------------------------------
+
+export async function deleteInvestment(unitSlug: string, formData: FormData): Promise<void> {
+  // 1. Cookie → leadId
+  const cookieStore = await cookies()
+  const token = cookieStore.get('dna_lead_token')?.value
+  if (!token) { redirect(`/${unitSlug}/investimentos`); return }
+
+  let leadId: string
+  try {
+    const decoded = Buffer.from(token, 'base64url').toString('utf-8')
+    leadId = decoded.split(':')[0]
+    if (!leadId || !/^[0-9a-f-]{36}$/.test(leadId)) throw new Error('invalid')
+  } catch {
+    redirect(`/${unitSlug}/investimentos`)
+    return
+  }
+
+  // 2. Validar ID (ownership validada no WHERE)
+  const investmentId = formData.get('id')?.toString().trim() ?? ''
+  if (!investmentId || !/^[0-9a-f-]{36}$/.test(investmentId)) {
+    redirect(`/${unitSlug}/investimentos`)
+    return
+  }
+
+  // 3. Resolver lead + unit_id do banco
+  const supabase = createServerSupabaseClient()
+  const { data: lead } = await supabase
+    .from('leads')
+    .select('id, unit_id')
+    .eq('id', leadId)
+    .eq('unit_slug', unitSlug)
+    .is('deleted_at', null)
+    .single()
+
+  if (!lead) { redirect(`/${unitSlug}/investimentos`); return }
+
+  // 4. Soft delete — ownership garantida: id + lead_id + unit_id no WHERE
+  await supabase
+    .from('investments')
+    .update({ deleted_at: new Date().toISOString() })
+    .eq('id', investmentId)
+    .eq('lead_id', lead.id)         // ← nunca exclui lançamento de outro lead
+    .eq('unit_id', lead.unit_id)    // ← nunca exclui de outra unidade
+    .is('deleted_at', null)
+
+  redirect(`/${unitSlug}/investimentos?excluido=1`)
 }
 
 // ---------------------------------------------------------------------------

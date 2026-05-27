@@ -848,9 +848,14 @@ export default async function PainelPage({ params }: Props) {
         }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
             <span style={{ fontSize: 13, fontWeight: 500, color: C.text }}>Despesas registradas</span>
-            <a href={`/${unitSlug}/despesas/nova`} style={{ fontSize: 11, color: C.purple, textDecoration: 'none', fontWeight: 500 }}>
-              + Lançar
-            </a>
+            <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+              <a href={`/${unitSlug}/despesas`} style={{ fontSize: 11, color: C.textSec, textDecoration: 'none' }}>
+                Histórico
+              </a>
+              <a href={`/${unitSlug}/despesas/nova`} style={{ fontSize: 11, color: C.purple, textDecoration: 'none', fontWeight: 600 }}>
+                + Lançar
+              </a>
+            </div>
           </div>
           {monthTotal > 0 && (
             <div style={{ display: 'flex', gap: 6, marginBottom: 12, flexWrap: 'wrap' }}>

@@ -14,7 +14,7 @@ import { redirect } from 'next/navigation'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { C } from '@/app/components/ui'
 import { InvestimentosClient } from './InvestimentosClient'
-import { createInvestment } from '@/lib/actions'
+import { createInvestment, deleteInvestment } from '@/lib/actions'
 import { LeadBottomNav } from '@/app/components/LeadBottomNav'
 
 // ── Mapeamento de tipos ───────────────────────────────────────────────────────
@@ -46,14 +46,14 @@ function fmtBRL(v: number) {
 
 interface Props {
   params:      Promise<{ unitSlug: string }>
-  searchParams: Promise<{ novo?: string }>
+  searchParams: Promise<{ novo?: string; editado?: string; excluido?: string }>
 }
 
 // ── Página ────────────────────────────────────────────────────────────────────
 
 export default async function InvestimentosPage({ params, searchParams }: Props) {
-  const { unitSlug } = await params
-  const { novo }     = await searchParams
+  const { unitSlug }              = await params
+  const { novo, editado, excluido } = await searchParams
 
   // 1. Cookie → leadId
   const cookieStore = await cookies()
@@ -126,8 +126,9 @@ export default async function InvestimentosPage({ params, searchParams }: Props)
   const topTypeKey  = Object.entries(typeTotals).sort((a, b) => b[1] - a[1])[0]?.[0] ?? null
   const topTypeInfo = topTypeKey ? INV_TYPE_INFO[topTypeKey] : null
 
-  // 5. Bind Server Action (unitSlug injetado pelo servidor — nunca do browser)
-  const boundAction = createInvestment.bind(null, unitSlug)
+  // 5. Bind Server Actions (unitSlug injetado pelo servidor — nunca do browser)
+  const boundAction       = createInvestment.bind(null, unitSlug)
+  const boundDeleteAction = deleteInvestment.bind(null, unitSlug)
 
   return (
     <div style={{ fontFamily: "'DM Sans', system-ui, sans-serif", background: C.bgApp, minHeight: '100dvh' }}>
@@ -245,13 +246,16 @@ export default async function InvestimentosPage({ params, searchParams }: Props)
           unitSlug={unitSlug}
           investments={investments}
           income={income}
-          showSuccess={novo === '1'}
+          showSuccess={novo     === '1'}
+          showEdited={editado  === '1'}
+          showDeleted={excluido === '1'}
           createInvestmentAction={boundAction}
+          deleteInvestmentAction={boundDeleteAction}
         />
 
       </main>
 
-      <LeadBottomNav unitSlug={unitSlug} />
+      <LeadBottomNav unitSlug={unitSlug} isBusiness={false} />
     </div>
   )
 }

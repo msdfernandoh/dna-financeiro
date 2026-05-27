@@ -145,6 +145,18 @@ export type CreateInvestmentResult =
   | { success: false; error: string; field?: string }
 
 // ---------------------------------------------------------------------------
+// Respostas das Server Actions de edição e exclusão de despesas/investimentos
+// ---------------------------------------------------------------------------
+
+export type UpdateExpenseResult =
+  | { success: true }
+  | { success: false; error: string; field?: string }
+
+export type UpdateInvestmentResult =
+  | { success: true }
+  | { success: false; error: string; field?: string }
+
+// ---------------------------------------------------------------------------
 // Resposta da Server Action de DNA Financeiro
 // ---------------------------------------------------------------------------
 
