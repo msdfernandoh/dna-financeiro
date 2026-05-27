@@ -56,13 +56,15 @@ function compoundFV(monthlySaving: number, months: number, rate = 0.01): number 
 // ── Props ─────────────────────────────────────────────────────────────────────
 
 interface Props {
-  params: Promise<{ unitSlug: string }>
+  params:       Promise<{ unitSlug: string }>
+  searchParams: Promise<{ refinado?: string; trocado?: string; conquistado?: string }>
 }
 
 // ── Página ────────────────────────────────────────────────────────────────────
 
-export default async function SonhoPage({ params }: Props) {
+export default async function SonhoPage({ params, searchParams }: Props) {
   const { unitSlug } = await params
+  const sp = await searchParams
 
   // 1. Cookie → leadId
   const cookieStore = await cookies()
@@ -90,25 +92,35 @@ export default async function SonhoPage({ params }: Props) {
 
   if (!lead) redirect(`/${unitSlug}`)
 
-  // 3. Sonho primário (graceful)
-  type PrimaryDream = {
+  // 3. Todos os sonhos do lead (primário + histórico + conquistados)
+  type DreamRow = {
+    id:            string
     dream_type:    string
     dream_subtype: string | null
     target_amount: number
     target_label:  string | null
+    is_primary:    boolean
+    status:        string
+    achieved_at:   string | null
   }
-  let primaryDream: PrimaryDream | null = null
+  let allDreams: DreamRow[] = []
   try {
     const { data } = await supabase
       .from('dreams')
-      .select('dream_type, dream_subtype, target_amount, target_label')
+      .select('id, dream_type, dream_subtype, target_amount, target_label, is_primary, status, achieved_at')
       .eq('lead_id', leadId!)
       .eq('unit_id', lead!.unit_id)
-      .eq('is_primary', true)
-      .limit(1)
-      .maybeSingle()
-    primaryDream = data
+      .is('deleted_at', null)
+      .order('is_primary', { ascending: false })
+      .order('created_at',  { ascending: false })
+      .limit(30)
+    allDreams = data ?? []
   } catch { /* graceful */ }
+
+  type PrimaryDream = DreamRow
+  const primaryDream   = allDreams.find(d => d.is_primary && d.status === 'active') ?? null
+  const otherDreams    = allDreams.filter(d => !d.is_primary && d.status === 'active')
+  const achievedDreams = allDreams.filter(d => d.status === 'achieved')
 
   // 4. PlanSettings (graceful — global sem unit_id)
   let planSettings: PlanSettings | null = null
@@ -195,7 +207,7 @@ export default async function SonhoPage({ params }: Props) {
       <main style={{ maxWidth: 480, margin: '0 auto', padding: '16px 16px 90px' }}>
 
         {/* ── Título ── */}
-        <div style={{ marginBottom: 16 }}>
+        <div style={{ marginBottom: 12 }}>
           <h1 style={{ fontSize: 20, fontWeight: 700, color: C.text, margin: '0 0 4px' }}>
             Caminhos para seu sonho 🎯
           </h1>
@@ -203,6 +215,86 @@ export default async function SonhoPage({ params }: Props) {
             Veja como você pode chegar lá — na velocidade que couber no seu bolso.
           </p>
         </div>
+
+        {/* ── Banners de feedback ── */}
+        {sp.refinado === '1' && (
+          <div style={{
+            background: C.greenBg, borderRadius: 14, padding: '12px 14px',
+            marginBottom: 12, display: 'flex', gap: 10, alignItems: 'center',
+            border: `0.5px solid ${C.greenDark}30`,
+          }}>
+            <span style={{ fontSize: 20, flexShrink: 0 }}>✅</span>
+            <div>
+              <p style={{ margin: '0 0 1px', fontSize: 13, fontWeight: 700, color: C.greenDark }}>Sonho refinado!</p>
+              <p style={{ margin: 0, fontSize: 11, color: C.greenDark }}>As alterações foram salvas com sucesso.</p>
+            </div>
+          </div>
+        )}
+        {sp.trocado === '1' && (
+          <div style={{
+            background: C.purpleBg, borderRadius: 14, padding: '12px 14px',
+            marginBottom: 12, display: 'flex', gap: 10, alignItems: 'center',
+            border: `0.5px solid ${C.purple}30`,
+          }}>
+            <span style={{ fontSize: 20, flexShrink: 0 }}>🔄</span>
+            <div>
+              <p style={{ margin: '0 0 1px', fontSize: 13, fontWeight: 700, color: C.purpleDeep }}>Sonho principal atualizado!</p>
+              <p style={{ margin: 0, fontSize: 11, color: C.purpleDeep }}>O sonho anterior permanece no histórico.</p>
+            </div>
+          </div>
+        )}
+        {sp.conquistado === '1' && (
+          <div style={{
+            background: C.amberBg, borderRadius: 14, padding: '12px 14px',
+            marginBottom: 12, display: 'flex', gap: 10, alignItems: 'center',
+            border: `0.5px solid ${C.amber}40`,
+          }}>
+            <span style={{ fontSize: 20, flexShrink: 0 }}>🏆</span>
+            <div>
+              <p style={{ margin: '0 0 1px', fontSize: 13, fontWeight: 700, color: C.amberDark }}>Parabéns! Sonho conquistado!</p>
+              <p style={{ margin: 0, fontSize: 11, color: C.amberDark }}>Está registrado no seu histórico de conquistas.</p>
+            </div>
+          </div>
+        )}
+
+        {/* ── 3 botões de gestão do sonho (só quando há sonho primário) ── */}
+        {primaryDream && (
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6, marginBottom: 14 }}>
+            <a href={`/${unitSlug}/sonho/editar`} style={{
+              background: '#fff', borderRadius: 12,
+              border: `0.5px solid ${C.border}`,
+              padding: '12px 8px', textDecoration: 'none',
+              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
+            }}>
+              <span style={{ fontSize: 20 }}>✏️</span>
+              <span style={{ fontSize: 10, fontWeight: 700, color: C.text, textAlign: 'center', lineHeight: 1.3 }}>
+                Refinar sonho
+              </span>
+            </a>
+            <a href={`/${unitSlug}/sonho/trocar`} style={{
+              background: C.purpleBg, borderRadius: 12,
+              border: `0.5px solid ${C.purple}20`,
+              padding: '12px 8px', textDecoration: 'none',
+              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
+            }}>
+              <span style={{ fontSize: 20 }}>🔄</span>
+              <span style={{ fontSize: 10, fontWeight: 700, color: C.purpleDeep, textAlign: 'center', lineHeight: 1.3 }}>
+                Trocar sonho
+              </span>
+            </a>
+            <a href={`/${unitSlug}/sonho/conquistado`} style={{
+              background: C.amberBg, borderRadius: 12,
+              border: `0.5px solid ${C.amber}30`,
+              padding: '12px 8px', textDecoration: 'none',
+              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
+            }}>
+              <span style={{ fontSize: 20 }}>🏆</span>
+              <span style={{ fontSize: 10, fontWeight: 700, color: C.amberDark, textAlign: 'center', lineHeight: 1.3 }}>
+                Conquistei!
+              </span>
+            </a>
+          </div>
+        )}
 
         {/* ── PARTE A: Sem sonho cadastrado ── */}
         {!primaryDream && (
@@ -565,6 +657,88 @@ export default async function SonhoPage({ params }: Props) {
                 )}
               </div>
             </div>
+
+            {/* ── PARTE D2: Histórico de sonhos ── */}
+            {(otherDreams.length > 0 || achievedDreams.length > 0) && (
+              <div style={{ marginBottom: 12 }}>
+                <p style={{ margin: '0 0 10px', fontSize: 13, fontWeight: 700, color: C.text }}>
+                  📂 Seus outros sonhos
+                </p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+
+                  {/* Sonhos ativos não-primários */}
+                  {otherDreams.map(d => {
+                    const di = DREAMS[d.dream_type] ?? DREAMS.outro
+                    return (
+                      <div key={d.id} style={{
+                        background: '#fff', borderRadius: 14,
+                        border: `0.5px solid ${C.border}`,
+                        padding: '12px 14px',
+                        display: 'flex', alignItems: 'center', gap: 12,
+                      }}>
+                        <div style={{
+                          width: 40, height: 40, borderRadius: 12,
+                          background: C.bgApp, flexShrink: 0,
+                          display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20,
+                        }}>
+                          {di.emoji}
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <p style={{ margin: 0, fontSize: 13, fontWeight: 600, color: C.text }}>
+                            {di.label}
+                          </p>
+                          <p style={{ margin: '2px 0 0', fontSize: 11, color: C.textSec }}>
+                            Meta: {d.target_label ?? fmtBRL(d.target_amount)}
+                          </p>
+                        </div>
+                        <a href={`/${unitSlug}/sonho/trocar`} style={{
+                          fontSize: 10, fontWeight: 600, color: C.purpleDeep,
+                          background: C.purpleBg, borderRadius: 8,
+                          padding: '6px 10px', textDecoration: 'none', flexShrink: 0,
+                          border: `0.5px solid ${C.purple}20`,
+                          whiteSpace: 'nowrap',
+                        }}>
+                          Tornar principal
+                        </a>
+                      </div>
+                    )
+                  })}
+
+                  {/* Sonhos conquistados */}
+                  {achievedDreams.map(d => {
+                    const di = DREAMS[d.dream_type] ?? DREAMS.outro
+                    const achievedDate = d.achieved_at
+                      ? new Date(d.achieved_at).toLocaleDateString('pt-BR', { month: 'short', year: 'numeric' })
+                      : null
+                    return (
+                      <div key={d.id} style={{
+                        background: C.amberBg, borderRadius: 14,
+                        border: `0.5px solid ${C.amber}30`,
+                        padding: '12px 14px',
+                        display: 'flex', alignItems: 'center', gap: 12,
+                      }}>
+                        <div style={{
+                          width: 40, height: 40, borderRadius: 12,
+                          background: 'rgba(255,255,255,0.5)', flexShrink: 0,
+                          display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20,
+                        }}>
+                          {di.emoji}
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <p style={{ margin: 0, fontSize: 13, fontWeight: 600, color: C.amberDark }}>
+                            {di.label}
+                          </p>
+                          <p style={{ margin: '2px 0 0', fontSize: 11, color: C.amberDark }}>
+                            🏆 Conquistado{achievedDate ? ` em ${achievedDate}` : ''}
+                          </p>
+                        </div>
+                      </div>
+                    )
+                  })}
+
+                </div>
+              </div>
+            )}
 
             {/* ── PARTE E: Botões de ação ── */}
             <ActionButtons unitSlug={unitSlug} />

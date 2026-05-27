@@ -207,6 +207,22 @@ export type AdminOppResult =
   | { success: false; error: string; field?: string }
 
 // ---------------------------------------------------------------------------
+// Respostas das Server Actions de sonhos
+// ---------------------------------------------------------------------------
+
+export type UpdateDreamResult =
+  | { success: true }
+  | { success: false; error: string; field?: string }
+
+export type CreateDreamResult =
+  | { success: true }
+  | { success: false; error: string; field?: string }
+
+export type MarkDreamAchievedResult =
+  | { success: true }
+  | { success: false; error: string; field?: string }
+
+// ---------------------------------------------------------------------------
 // Erros de validação do formulário
 // ---------------------------------------------------------------------------
 

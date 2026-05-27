@@ -24,7 +24,7 @@
 import { cookies, headers } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
-import type { LeadCreateInput, CreateLeadResult, CreateExpenseResult, CreateInvestmentResult, UpdateExpenseResult, UpdateInvestmentResult, SaveDnaResult, SaveBusinessProfileState, FormErrors } from '@/types/database'
+import type { LeadCreateInput, CreateLeadResult, CreateExpenseResult, CreateInvestmentResult, UpdateExpenseResult, UpdateInvestmentResult, UpdateDreamResult, CreateDreamResult, MarkDreamAchievedResult, SaveDnaResult, SaveBusinessProfileState, FormErrors } from '@/types/database'
 
 // ---------------------------------------------------------------------------
 // Helper: formata dígitos de telefone para busca de duplicados
@@ -1162,4 +1162,423 @@ export async function saveBusinessProfile(
   // 8. Redirecionar para próximo bloco ou conclusão (FORA de qualquer try/catch)
   if (block >= 5) redirect(`/${unitSlug}/empresa?concluido=1`)
   redirect(`/${unitSlug}/empresa?bloco=${block + 1}`)
+}
+
+// ---------------------------------------------------------------------------
+// Helper privado: trocar sonho principal + atualizar leads.main_dream
+//
+// Chama-se de dentro de createDream, setPrimaryDream e markDreamAchieved.
+// NÃO exportado — não vira Server Action.
+// ---------------------------------------------------------------------------
+
+async function flipPrimaryDream(
+  supabase: ReturnType<typeof createServerSupabaseClient>,
+  leadId:      string,
+  unitId:      string,
+  unitSlug:    string,
+  newDreamId:  string,
+  newDreamType: string,
+): Promise<void> {
+  // 1. Desativa qualquer outro sonho primário deste lead
+  await supabase
+    .from('dreams')
+    .update({ is_primary: false })
+    .eq('lead_id', leadId)
+    .neq('id', newDreamId)
+    .eq('is_primary', true)
+    .is('deleted_at', null)
+
+  // 2. Ativa o novo sonho como primário
+  await supabase
+    .from('dreams')
+    .update({ is_primary: true })
+    .eq('id', newDreamId)
+    .eq('lead_id', leadId)
+    .eq('unit_id', unitId)
+    .is('deleted_at', null)
+
+  // 3. Mantém leads.main_dream sincronizado
+  await supabase
+    .from('leads')
+    .update({ main_dream: newDreamType })
+    .eq('id', leadId)
+    .eq('unit_id', unitId)
+    .eq('unit_slug', unitSlug)
+}
+
+// ---------------------------------------------------------------------------
+// Server Action: Editar sonho (refinamento)
+//
+// SEGURANÇA:
+//   • unitSlug vinculado no servidor — nunca do browser
+//   • lead_id e unit_id resolvidos do cookie + banco
+//   • UPDATE filtra por id + lead_id + unit_id + deleted_at
+// ---------------------------------------------------------------------------
+
+const VALID_DREAM_TYPES = [
+  'casa', 'carro', 'negocio', 'viagem', 'reserva',
+  'faculdade', 'reforma', 'dividas', 'moto',
+  'caminhao', 'aposentadoria_imobiliaria', 'outro',
+] as const
+
+export async function updateDream(
+  unitSlug: string,
+  _prevState: UpdateDreamResult | null,
+  formData: FormData,
+): Promise<UpdateDreamResult> {
+  // 1. Cookie → leadId
+  const cookieStore = await cookies()
+  const token = cookieStore.get('dna_lead_token')?.value
+  if (!token) return { success: false, error: 'Sessão não encontrada.' }
+
+  let leadId: string
+  try {
+    const decoded = Buffer.from(token, 'base64url').toString('utf-8')
+    leadId = decoded.split(':')[0]
+    if (!leadId || !/^[0-9a-f-]{36}$/.test(leadId)) throw new Error('invalid')
+  } catch {
+    return { success: false, error: 'Sessão inválida.' }
+  }
+
+  // 2. Validar ID do sonho
+  const dreamId = formData.get('id')?.toString().trim() ?? ''
+  if (!dreamId || !/^[0-9a-f-]{36}$/.test(dreamId)) {
+    return { success: false, error: 'Sonho inválido.' }
+  }
+
+  // 3. Validar valor-alvo
+  const amountRaw = formData.get('target_amount')?.toString() ?? ''
+  const targetAmount = parseFloat(amountRaw.replace(/\./g, '').replace(',', '.'))
+  if (isNaN(targetAmount) || targetAmount <= 0) {
+    return { success: false, error: 'Informe um valor-alvo maior que zero.', field: 'target_amount' }
+  }
+  if (targetAmount > 99_999_999) {
+    return { success: false, error: 'Valor muito alto.', field: 'target_amount' }
+  }
+
+  // 4. Outros campos
+  const dreamSubtype  = formData.get('dream_subtype')?.toString().trim() || null
+  const targetLabel   = formData.get('target_label')?.toString().trim()  || null
+
+  const contribRaw = formData.get('monthly_contribution')?.toString() ?? ''
+  const monthlyContribution = contribRaw
+    ? Math.max(0, parseFloat(contribRaw.replace(/\./g, '').replace(',', '.')) || 0)
+    : 0
+
+  const savedRaw = formData.get('saved_amount')?.toString() ?? ''
+  const savedAmount = savedRaw
+    ? Math.max(0, parseFloat(savedRaw.replace(/\./g, '').replace(',', '.')) || 0)
+    : 0
+
+  // 5. Resolver lead + unit_id
+  const supabase = createServerSupabaseClient()
+  const { data: lead } = await supabase
+    .from('leads')
+    .select('id, unit_id')
+    .eq('id', leadId)
+    .eq('unit_slug', unitSlug)
+    .is('deleted_at', null)
+    .single()
+
+  if (!lead) return { success: false, error: 'Sessão inválida ou expirada.' }
+
+  // 6. UPDATE — ownership: id + lead_id + unit_id
+  const { data: updated } = await supabase
+    .from('dreams')
+    .update({
+      dream_subtype:        dreamSubtype,
+      target_amount:        targetAmount,
+      target_label:         targetLabel,
+      monthly_contribution: monthlyContribution,
+      saved_amount:         savedAmount,
+    })
+    .eq('id', dreamId)
+    .eq('lead_id', lead.id)
+    .eq('unit_id', lead.unit_id)
+    .eq('status', 'active')
+    .is('deleted_at', null)
+    .select('id')
+    .single()
+
+  if (!updated) return { success: false, error: 'Sonho não encontrado ou sem permissão para editar.' }
+
+  redirect(`/${unitSlug}/sonho?refinado=1`)
+}
+
+// ---------------------------------------------------------------------------
+// Server Action: Trocar sonho principal
+//
+// Flips is_primary do sonho escolhido e atualiza leads.main_dream.
+// Sonho anterior permanece no histórico com is_primary = false.
+// ---------------------------------------------------------------------------
+
+export async function setPrimaryDream(unitSlug: string, formData: FormData): Promise<void> {
+  // 1. Cookie → leadId
+  const cookieStore = await cookies()
+  const token = cookieStore.get('dna_lead_token')?.value
+  if (!token) { redirect(`/${unitSlug}/sonho/trocar`); return }
+
+  let leadId: string
+  try {
+    const decoded = Buffer.from(token, 'base64url').toString('utf-8')
+    leadId = decoded.split(':')[0]
+    if (!leadId || !/^[0-9a-f-]{36}$/.test(leadId)) throw new Error('invalid')
+  } catch {
+    redirect(`/${unitSlug}/sonho/trocar`)
+    return
+  }
+
+  // 2. Validar ID do novo sonho principal
+  const dreamId = formData.get('dream_id')?.toString().trim() ?? ''
+  if (!dreamId || !/^[0-9a-f-]{36}$/.test(dreamId)) {
+    redirect(`/${unitSlug}/sonho/trocar`)
+    return
+  }
+
+  // 3. Resolver lead + unit_id
+  const supabase = createServerSupabaseClient()
+  const { data: lead } = await supabase
+    .from('leads')
+    .select('id, unit_id')
+    .eq('id', leadId)
+    .eq('unit_slug', unitSlug)
+    .is('deleted_at', null)
+    .single()
+
+  if (!lead) { redirect(`/${unitSlug}/sonho/trocar`); return }
+
+  // 4. Buscar o sonho escolhido para validar ownership + obter dream_type
+  const { data: dream } = await supabase
+    .from('dreams')
+    .select('id, dream_type')
+    .eq('id', dreamId)
+    .eq('lead_id', lead.id)
+    .eq('unit_id', lead.unit_id)
+    .eq('status', 'active')
+    .is('deleted_at', null)
+    .single()
+
+  if (!dream) { redirect(`/${unitSlug}/sonho/trocar`); return }
+
+  // 5. Flipar primary e sincronizar leads.main_dream
+  await flipPrimaryDream(supabase, lead.id, lead.unit_id, unitSlug, dream.id, dream.dream_type)
+
+  redirect(`/${unitSlug}/sonho?trocado=1`)
+}
+
+// ---------------------------------------------------------------------------
+// Server Action: Criar novo sonho
+//
+// Cria sonho no histórico do lead. Se make_primary = true,
+// flipa is_primary e atualiza leads.main_dream.
+// ---------------------------------------------------------------------------
+
+export async function createDream(
+  unitSlug: string,
+  _prevState: CreateDreamResult | null,
+  formData: FormData,
+): Promise<CreateDreamResult> {
+  // 1. Cookie → leadId
+  const cookieStore = await cookies()
+  const token = cookieStore.get('dna_lead_token')?.value
+  if (!token) return { success: false, error: 'Sessão não encontrada.' }
+
+  let leadId: string
+  try {
+    const decoded = Buffer.from(token, 'base64url').toString('utf-8')
+    leadId = decoded.split(':')[0]
+    if (!leadId || !/^[0-9a-f-]{36}$/.test(leadId)) throw new Error('invalid')
+  } catch {
+    return { success: false, error: 'Sessão inválida.' }
+  }
+
+  // 2. Validar tipo do sonho
+  const dreamType = formData.get('dream_type')?.toString().trim() ?? ''
+  if (!VALID_DREAM_TYPES.includes(dreamType as typeof VALID_DREAM_TYPES[number])) {
+    return { success: false, error: 'Selecione um tipo de sonho.', field: 'dream_type' }
+  }
+
+  // 3. Validar valor-alvo
+  const amountRaw = formData.get('target_amount')?.toString() ?? ''
+  const targetAmount = parseFloat(amountRaw.replace(/\./g, '').replace(',', '.'))
+  if (isNaN(targetAmount) || targetAmount <= 0) {
+    return { success: false, error: 'Informe um valor-alvo maior que zero.', field: 'target_amount' }
+  }
+  if (targetAmount > 99_999_999) {
+    return { success: false, error: 'Valor muito alto.', field: 'target_amount' }
+  }
+
+  const dreamSubtype = formData.get('dream_subtype')?.toString().trim() || null
+  const targetLabel  = formData.get('target_label')?.toString().trim()  || null
+  const makePrimary  = formData.get('make_primary') === 'true'
+
+  // 4. Resolver lead + unit_id
+  const supabase = createServerSupabaseClient()
+  const { data: lead } = await supabase
+    .from('leads')
+    .select('id, unit_id')
+    .eq('id', leadId)
+    .eq('unit_slug', unitSlug)
+    .is('deleted_at', null)
+    .single()
+
+  if (!lead) return { success: false, error: 'Sessão inválida ou expirada.' }
+
+  // 5. Inserir novo sonho (is_primary = false inicialmente)
+  const { data: newDream, error: insertError } = await supabase
+    .from('dreams')
+    .insert({
+      unit_id:       lead.unit_id,
+      lead_id:       lead.id,
+      dream_type:    dreamType,
+      dream_subtype: dreamSubtype,
+      target_amount: targetAmount,
+      target_label:  targetLabel,
+      saved_amount:  0,
+      monthly_contribution: 0,
+      is_primary:    false,
+      status:        'active',
+    })
+    .select('id')
+    .single()
+
+  if (insertError || !newDream) {
+    console.error('[createDream]', insertError?.message)
+    return { success: false, error: 'Erro ao criar o sonho. Tente novamente.' }
+  }
+
+  // 6. Se make_primary, flipar e sincronizar leads.main_dream
+  if (makePrimary) {
+    await flipPrimaryDream(supabase, lead.id, lead.unit_id, unitSlug, newDream.id, dreamType)
+    redirect(`/${unitSlug}/sonho?trocado=1`)
+  }
+
+  redirect(`/${unitSlug}/sonho/trocar?criado=1`)
+}
+
+// ---------------------------------------------------------------------------
+// Server Action: Marcar sonho como conquistado
+//
+// SEGURANÇA:
+//   • Nunca apaga fisicamente — soft delete via status = 'achieved'
+//   • allow_public_case só pode ser true se testimonial estiver preenchido
+//   • Se era is_primary, promove próximo sonho ativo como primário
+// ---------------------------------------------------------------------------
+
+const VALID_ACHIEVED_METHODS = [
+  'poupanca', 'investimento', 'financiamento', 'cdc',
+  'consorcio', 'consorcio_com_lance', 'consorcio_com_data_de_contemplação', 'outro',
+] as const
+
+export async function markDreamAchieved(unitSlug: string, formData: FormData): Promise<void> {
+  // 1. Cookie → leadId
+  const cookieStore = await cookies()
+  const token = cookieStore.get('dna_lead_token')?.value
+  if (!token) { redirect(`/${unitSlug}/sonho/conquistado`); return }
+
+  let leadId: string
+  try {
+    const decoded = Buffer.from(token, 'base64url').toString('utf-8')
+    leadId = decoded.split(':')[0]
+    if (!leadId || !/^[0-9a-f-]{36}$/.test(leadId)) throw new Error('invalid')
+  } catch {
+    redirect(`/${unitSlug}/sonho/conquistado`)
+    return
+  }
+
+  // 2. Validar ID do sonho
+  const dreamId = formData.get('id')?.toString().trim() ?? ''
+  if (!dreamId || !/^[0-9a-f-]{36}$/.test(dreamId)) {
+    redirect(`/${unitSlug}/sonho/conquistado`)
+    return
+  }
+
+  // 3. Resolver lead + unit_id
+  const supabase = createServerSupabaseClient()
+  const { data: lead } = await supabase
+    .from('leads')
+    .select('id, unit_id')
+    .eq('id', leadId)
+    .eq('unit_slug', unitSlug)
+    .is('deleted_at', null)
+    .single()
+
+  if (!lead) { redirect(`/${unitSlug}/sonho/conquistado`); return }
+
+  // 4. Buscar o sonho para validar ownership + is_primary
+  const { data: dream } = await supabase
+    .from('dreams')
+    .select('id, dream_type, is_primary')
+    .eq('id', dreamId)
+    .eq('lead_id', lead.id)
+    .eq('unit_id', lead.unit_id)
+    .eq('status', 'active')
+    .is('deleted_at', null)
+    .single()
+
+  if (!dream) { redirect(`/${unitSlug}/sonho`); return }
+
+  // 5. Campos de conquista
+  const achievedAmountRaw = formData.get('achieved_amount')?.toString() ?? ''
+  const achievedAmount = achievedAmountRaw
+    ? (parseFloat(achievedAmountRaw.replace(/\./g, '').replace(',', '.')) || null)
+    : null
+
+  const achievedMethod = formData.get('achieved_method')?.toString().trim() ?? ''
+  if (!VALID_ACHIEVED_METHODS.includes(achievedMethod as typeof VALID_ACHIEVED_METHODS[number])) {
+    redirect(`/${unitSlug}/sonho/conquistado`)
+    return
+  }
+
+  const testimonial      = formData.get('testimonial')?.toString().trim() || null
+  const allowPublicCase  = formData.get('allow_public_case') === 'true'
+
+  // Segurança: allow_public_case só pode ser true com testimonial
+  const safePublicCase = allowPublicCase && !!testimonial
+
+  // 6. Marcar como conquistado
+  await supabase
+    .from('dreams')
+    .update({
+      status:           'achieved',
+      achieved_at:      new Date().toISOString(),
+      achieved_amount:  achievedAmount,
+      achieved_method:  achievedMethod,
+      testimonial:      testimonial,
+      allow_public_case: safePublicCase,
+      is_primary:       false,
+    })
+    .eq('id', dreamId)
+    .eq('lead_id', lead.id)
+    .eq('unit_id', lead.unit_id)
+    .eq('status', 'active')
+    .is('deleted_at', null)
+
+  // 7. Se era primário, promover próximo sonho ativo (ou limpar main_dream)
+  if (dream.is_primary) {
+    const { data: nextDream } = await supabase
+      .from('dreams')
+      .select('id, dream_type')
+      .eq('lead_id', lead.id)
+      .eq('unit_id', lead.unit_id)
+      .neq('id', dreamId)
+      .eq('status', 'active')
+      .is('deleted_at', null)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    if (nextDream) {
+      await flipPrimaryDream(supabase, lead.id, lead.unit_id, unitSlug, nextDream.id, nextDream.dream_type)
+    } else {
+      // Nenhum sonho ativo restante — limpa main_dream
+      await supabase
+        .from('leads')
+        .update({ main_dream: null })
+        .eq('id', lead.id)
+        .eq('unit_slug', unitSlug)
+    }
+  }
+
+  redirect(`/${unitSlug}/sonho?conquistado=1`)
 }
