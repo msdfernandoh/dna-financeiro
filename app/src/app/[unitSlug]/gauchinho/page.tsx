@@ -214,7 +214,65 @@ export default async function GauchinhoPage({ params }: Props) {
       </section>
 
       {/* ════════════════════════════════════════════════════════════════════ */}
-      {/* 2. SOLUÇÕES                                                          */}
+      {/* 2. BLOCO EVENTO — Cadastro para análise do evento                    */}
+      {/* ════════════════════════════════════════════════════════════════════ */}
+      <section style={{ padding: '32px 20px 0', maxWidth: 480, margin: '0 auto' }}>
+        <div style={{
+          background: 'linear-gradient(135deg, #1a1547 0%, #0f0d24 100%)',
+          borderRadius: 20,
+          padding: '24px 20px',
+          position: 'relative',
+          overflow: 'hidden',
+          border: '1px solid rgba(239,159,39,0.25)',
+        }}>
+          <div style={{
+            position: 'absolute', top: -40, right: -40, width: 180, height: 180,
+            background: 'radial-gradient(circle, rgba(239,159,39,.15) 0%, transparent 65%)',
+            pointerEvents: 'none',
+          }}/>
+          <div style={{ position: 'relative', zIndex: 1 }}>
+            <span style={{
+              display: 'inline-block',
+              background: 'rgba(239,159,39,0.18)',
+              border: '1px solid rgba(239,159,39,0.35)',
+              color: '#F5C86A',
+              fontSize: 10, fontWeight: 600,
+              padding: '4px 12px', borderRadius: 99,
+              letterSpacing: 0.5, textTransform: 'uppercase',
+              marginBottom: 12,
+            }}>
+              Evento Construtora
+            </span>
+            <h2 style={{ fontSize: 18, fontWeight: 700, color: '#fff', margin: '0 0 8px', lineHeight: 1.3 }}>
+              🏠 Precisa pagar a entrega do seu apartamento?
+            </h2>
+            <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.55)', lineHeight: 1.65, margin: '0 0 18px' }}>
+              Cadastre-se para receber uma análise das melhores soluções:
+              consórcio, carta contemplada, financiamento ou crédito.
+            </p>
+            <a
+              href={`/${unitSlug}/gauchinho/evento`}
+              style={{
+                display: 'block', textAlign: 'center', textDecoration: 'none',
+                background: 'linear-gradient(135deg, #EF9F27, #B86E00)',
+                color: '#fff',
+                borderRadius: 12, padding: '15px 20px',
+                fontSize: 15, fontWeight: 700,
+                boxShadow: '0 4px 24px rgba(239,159,39,.4)',
+                letterSpacing: 0.2,
+              }}
+            >
+              📋 Cadastrar para análise do evento →
+            </a>
+            <p style={{ textAlign: 'center', fontSize: 11, color: 'rgba(255,255,255,0.25)', marginTop: 10 }}>
+              Gratuito · Sem compromisso · Análise personalizada
+            </p>
+          </div>
+        </div>
+      </section>
+
+      {/* ════════════════════════════════════════════════════════════════════ */}
+      {/* 4. SOLUÇÕES                                                          */}
       {/* ════════════════════════════════════════════════════════════════════ */}
       <section style={{ padding: '48px 20px', maxWidth: 480, margin: '0 auto' }}>
 
@@ -255,7 +313,7 @@ export default async function GauchinhoPage({ params }: Props) {
       </section>
 
       {/* ════════════════════════════════════════════════════════════════════ */}
-      {/* 3. COMO FUNCIONA                                                     */}
+      {/* 5. COMO FUNCIONA                                                     */}
       {/* ════════════════════════════════════════════════════════════════════ */}
       <section style={{
         padding: '48px 20px',
@@ -323,7 +381,7 @@ export default async function GauchinhoPage({ params }: Props) {
       </section>
 
       {/* ════════════════════════════════════════════════════════════════════ */}
-      {/* 4. VANTAGENS DO CONSÓRCIO                                            */}
+      {/* 6. VANTAGENS DO CONSÓRCIO                                            */}
       {/* ════════════════════════════════════════════════════════════════════ */}
       <section style={{ padding: '48px 20px', maxWidth: 480, margin: '0 auto' }}>
 
@@ -373,7 +431,7 @@ export default async function GauchinhoPage({ params }: Props) {
       </section>
 
       {/* ════════════════════════════════════════════════════════════════════ */}
-      {/* 5. PLANO PONTUAL                                                     */}
+      {/* 7. PLANO PONTUAL                                                     */}
       {/* ════════════════════════════════════════════════════════════════════ */}
       <section style={{
         padding: '48px 20px',
@@ -457,7 +515,7 @@ export default async function GauchinhoPage({ params }: Props) {
       </section>
 
       {/* ════════════════════════════════════════════════════════════════════ */}
-      {/* 6. SIMULE SEU SONHO                                                  */}
+      {/* 8. SIMULE SEU SONHO                                                  */}
       {/* ════════════════════════════════════════════════════════════════════ */}
       <section style={{ padding: '48px 20px', maxWidth: 480, margin: '0 auto' }}>
 
@@ -505,7 +563,7 @@ export default async function GauchinhoPage({ params }: Props) {
       </section>
 
       {/* ════════════════════════════════════════════════════════════════════ */}
-      {/* 7. AUTORIDADE / PROVA SOCIAL                                         */}
+      {/* 9. AUTORIDADE / PROVA SOCIAL                                         */}
       {/* ════════════════════════════════════════════════════════════════════ */}
       <section style={{
         padding: '48px 20px',
@@ -554,7 +612,7 @@ export default async function GauchinhoPage({ params }: Props) {
       </section>
 
       {/* ════════════════════════════════════════════════════════════════════ */}
-      {/* 8. CAPTAÇÃO — REDIRECIONA PARA O FLUXO EXISTENTE DO DNA              */}
+      {/* 10. CAPTAÇÃO — REDIRECIONA PARA O FLUXO EXISTENTE DO DNA              */}
       {/* ════════════════════════════════════════════════════════════════════ */}
       <section style={{ padding: '48px 20px', maxWidth: 480, margin: '0 auto' }}>
 
@@ -603,7 +661,7 @@ export default async function GauchinhoPage({ params }: Props) {
       </section>
 
       {/* ════════════════════════════════════════════════════════════════════ */}
-      {/* 9. BLOCO FINAL                                                       */}
+      {/* 11. BLOCO FINAL                                                       */}
       {/* ════════════════════════════════════════════════════════════════════ */}
       <section style={{
         padding: '48px 20px 56px',
