@@ -122,7 +122,7 @@ export default async function AdminGauchinhoLeadsPage({ searchParams }: Props) {
     .order('created_at', { ascending: false })
     .limit(1000)
 
-  const allLeads = (allRaw ?? []) as EventLeadRow[]
+  const allLeads = (allRaw ?? []) as unknown as EventLeadRow[]
 
   // ── KPIs ──────────────────────────────────────────────────────────────────
   const todayStart   = new Date(); todayStart.setHours(0, 0, 0, 0)
