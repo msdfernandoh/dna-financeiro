@@ -262,7 +262,7 @@ export async function GET() {
   const today    = new Date().toISOString().split('T')[0]
   const filename = `leads-evento-gauchinho-construtora-${today}.xlsx`
 
-  return new NextResponse(buffer, {
+  return new NextResponse(new Uint8Array(buffer), {
     status: 200,
     headers: {
       'Content-Type':        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
