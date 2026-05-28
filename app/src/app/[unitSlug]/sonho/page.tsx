@@ -9,7 +9,7 @@
 //   • NUNCA prometer aprovação de crédito, rendimento garantido ou contemplação
 // =============================================================================
 
-import type { ReactNode } from 'react'
+import { Fragment, type ReactNode } from 'react'
 import { cookies }  from 'next/headers'
 import { redirect } from 'next/navigation'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
@@ -18,7 +18,9 @@ import { LeadBottomNav } from '@/app/components/LeadBottomNav'
 import {
   calculateDreamPlan, fmtBRLPlan, formatDreamSubtype,
   GOAL_STATUS_META, INSTALLMENT_STATUS_META,
+  resolvePaths, futureValue, annualToMonthlyRate, evalInstallmentStatus, calcInstallment,
   type PlanSettings, type GoalStatus, type InstallmentStatus,
+  type DreamPathSetting,
 } from '@/lib/dreamPlan'
 
 // ── Dados dos sonhos ──────────────────────────────────────────────────────────
@@ -40,6 +42,9 @@ const DREAMS: Record<string, { label: string; emoji: string }> = {
 
 // Tipos elegíveis para consórcio
 const CONSORCIAVEL = new Set(['carro', 'casa', 'caminhao', 'aposentadoria_imobiliaria'])
+
+// Tipos imobiliários — não exibem plano fixo genérico sem configuração real
+const REAL_ESTATE_TYPES = new Set(['casa', 'aposentadoria_imobiliaria'])
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -148,33 +153,107 @@ export default async function SonhoPage({ params, searchParams }: Props) {
     } catch { /* graceful */ }
   }
 
+  // 5. dream_path_settings — caminhos dinâmicos por tipo de sonho
+  let rawPaths: DreamPathSetting[] = []
+  if (primaryDream) {
+    try {
+      const { data: pathRows } = await supabase
+        .from('dream_path_settings')
+        .select(`
+          path_type, dream_subtype, label, description,
+          sort_order, show_capital_gain, show_total_cost,
+          default_amount,
+          term_months, annual_return_rate, monthly_interest_rate, annual_interest_rate,
+          admin_fee_rate, admin_fee_base, down_payment_percent, bid_percent,
+          programmed_contemplation_month, anticipation_start_month, anticipation_installments,
+          full_installment_amount, reduced_installment_amount,
+          group_size, draws_per_month, required_paid_installments_for_credit,
+          average_letter_premium_percent,
+          calculation_mode,
+          promo_active, promo_label, promo_starts_at, promo_ends_at,
+          promo_admin_fee_rate, promo_installment_amount, promo_reduced_installment_amount
+        `)
+        .eq('dream_type', primaryDream.dream_type)
+        .eq('active', true)
+        .is('deleted_at', null)
+        .order('sort_order')
+      rawPaths = (pathRows ?? []) as DreamPathSetting[]
+    } catch { /* graceful — fallback para cards hardcoded */ }
+  }
+  const resolvedPaths    = resolvePaths(rawPaths, primaryDream?.dream_subtype ?? null)
+  const hasDynamicPaths  = resolvedPaths.length > 0
+  const showComparisonBlock = hasDynamicPaths &&
+    resolvedPaths.some(p => p.path_type === 'investment') &&
+    resolvedPaths.some(p =>
+      p.path_type === 'consortium_programmed_date' ||
+      p.path_type === 'consortium_traditional'
+    )
+
   // ── Cálculos ──────────────────────────────────────────────────────────────
 
   const income   = lead!.monthly_income   ?? 0
   const expenses = lead!.monthly_expenses ?? 0
   const sobra    = income - expenses
 
-  const dreamInfo   = primaryDream ? (DREAMS[primaryDream.dream_type] ?? DREAMS.outro) : null
-  const plan        = primaryDream ? calculateDreamPlan(primaryDream.target_amount, sobra, planSettings) : null
+  const dreamInfo      = primaryDream ? (DREAMS[primaryDream.dream_type] ?? DREAMS.outro) : null
+  const plan           = primaryDream ? calculateDreamPlan(primaryDream.target_amount, sobra, planSettings) : null
   const isConsorcio    = primaryDream ? CONSORCIAVEL.has(primaryDream.dream_type) : false
   const isPlanoPontual = primaryDream ? ['carro', 'caminhao'].includes(primaryDream.dream_type) : false
+  const isRealEstate   = primaryDream ? REAL_ESTATE_TYPES.has(primaryDream.dream_type) : false
 
-  // Linhas "guardar à vista"
-  const savingRows: { months: number; em: number; status: GoalStatus }[] = plan ? [
-    { months: 12, em: plan.em12, status: plan.status12 },
-    { months: 24, em: plan.em24, status: plan.status24 },
-    { months: 36, em: plan.em36, status: plan.status36 },
-    { months: 60, em: plan.em60, status: plan.status60 },
-  ] : []
+  // PARTE D — prazo do plano para horizonte de comparação nos cards fallback
+  // Prioridade: consórcio > financiamento > qualquer path com term_months > planSettings
+  const planTermMonths: number | null = (() => {
+    if (hasDynamicPaths) {
+      const consTerm = resolvedPaths.find(p =>
+        p.path_type === 'consortium_traditional' ||
+        p.path_type === 'consortium_with_bid' ||
+        p.path_type === 'consortium_programmed_date'
+      )?.term_months ?? null
+      if (consTerm) return consTerm
+      return resolvedPaths.find(p => p.term_months !== null)?.term_months ?? null
+    }
+    return planSettings?.term_months ?? null
+  })()
 
-  // Linhas "investir mensalmente" (juros compostos 1%/mês)
+  // Linhas "guardar à vista" — horizontes base + prazo do plano se > 60
   const safeMonthly = sobra > 0 ? sobra : 0
-  const compoundRows: { months: number; fv: number }[] = plan ? [
-    { months: 12, fv: compoundFV(safeMonthly, 12) },
-    { months: 24, fv: compoundFV(safeMonthly, 24) },
-    { months: 36, fv: compoundFV(safeMonthly, 36) },
-    { months: 60, fv: compoundFV(safeMonthly, 60) },
-  ] : []
+
+  const savingRows: { months: number; em: number; status: GoalStatus }[] = (() => {
+    if (!plan) return []
+    const rows: { months: number; em: number; status: GoalStatus }[] = [
+      { months: 12, em: plan.em12, status: plan.status12 },
+      { months: 24, em: plan.em24, status: plan.status24 },
+      { months: 36, em: plan.em36, status: plan.status36 },
+      { months: 60, em: plan.em60, status: plan.status60 },
+    ]
+    if (planTermMonths && planTermMonths > 60) {
+      const em   = sobra * planTermMonths
+      const need = plan.target / planTermMonths
+      const gap  = need - (sobra > 0 ? sobra : 0)
+      const status: GoalStatus = sobra <= 0 ? 'dificil'
+        : gap <= 0 ? 'confortavel'
+        : gap / need <= 0.30 ? 'possivel'
+        : 'dificil'
+      rows.push({ months: planTermMonths, em, status })
+    }
+    return rows
+  })()
+
+  // Linhas "investir mensalmente" (juros compostos 1%/mês) — mesmos horizontes
+  const compoundRows: { months: number; fv: number }[] = (() => {
+    if (!plan) return []
+    const rows = [
+      { months: 12, fv: compoundFV(safeMonthly, 12) },
+      { months: 24, fv: compoundFV(safeMonthly, 24) },
+      { months: 36, fv: compoundFV(safeMonthly, 36) },
+      { months: 60, fv: compoundFV(safeMonthly, 60) },
+    ]
+    if (planTermMonths && planTermMonths > 60) {
+      rows.push({ months: planTermMonths, fv: compoundFV(safeMonthly, planTermMonths) })
+    }
+    return rows
+  })()
 
   return (
     <div style={{ fontFamily: "'DM Sans', system-ui, sans-serif", background: C.bgApp, minHeight: '100dvh' }}>
@@ -426,8 +505,9 @@ export default async function SonhoPage({ params, searchParams }: Props) {
                 </div>
               )}
 
-              {/* Parcela sugerida (quando há planSettings) */}
-              {plan.hasPlanSettings && (plan.reducedInstallment !== null || plan.fullInstallment !== null) && (
+              {/* Parcela sugerida — só com plano real configurado (dream_path_settings) */}
+              {hasDynamicPaths && plan.hasPlanSettings &&
+               (plan.reducedInstallment !== null || plan.fullInstallment !== null) && (
                 <div style={{
                   background: C.greenBg, borderRadius: 12,
                   padding: '12px 14px',
@@ -448,12 +528,50 @@ export default async function SonhoPage({ params, searchParams }: Props) {
                   </div>
                 </div>
               )}
+
+              {/* Sem plano configurado — mensagem limpa */}
+              {!hasDynamicPaths && (
+                <div style={{
+                  background: C.bgApp, borderRadius: 12,
+                  padding: '12px 14px', border: `0.5px solid ${C.border}`,
+                  display: 'flex', alignItems: 'center', gap: 10,
+                }}>
+                  <span style={{ fontSize: 18, flexShrink: 0 }}>🔧</span>
+                  <p style={{ margin: 0, fontSize: 12, color: C.textSec, lineHeight: 1.5 }}>
+                    {isRealEstate
+                      ? 'Planos de imóvel serão configurados em breve. Veja as simulações abaixo.'
+                      : 'Plano ainda não configurado para este tipo de sonho.'}
+                  </p>
+                </div>
+              )}
             </div>
 
             {/* ── PARTE C: Comparativo de caminhos ── */}
             <p style={{ margin: '4px 0 10px', fontSize: 13, fontWeight: 700, color: C.text }}>
               📊 Comparativo de caminhos
             </p>
+
+            {/* Cards dinâmicos do banco (dream_path_settings) */}
+            {hasDynamicPaths && (
+              <>
+                {resolvedPaths.map(p => (
+                  <Fragment key={p.path_type}>
+                    {renderDynamicPathCard(p, {
+                      target:         primaryDream.target_amount,
+                      targetLabel:    primaryDream.target_label,
+                      sobra,
+                      safeMonthly,
+                      bestMonths:     plan.bestMonths,
+                      planTermMonths,
+                    })}
+                  </Fragment>
+                ))}
+                {showComparisonBlock && <ComparisonBlock />}
+              </>
+            )}
+
+            {/* Fallback: cards simples quando não há dream_path_settings configurado */}
+            {!hasDynamicPaths && (<>
 
             {/* Card 1: Guardar à vista */}
             <PathCard
@@ -532,12 +650,14 @@ export default async function SonhoPage({ params, searchParams }: Props) {
               )}
             </PathCard>
 
-            {/* Card 3: Plano com parcela (quando há planSettings) */}
-            {plan.hasPlanSettings && (
+            {/* Card 3: Plano com parcela
+                  — Não exibir para imóvel (valores fixos genéricos são enganosos)
+                  — Para outros tipos: rotular como "simulação padrão (genérica)" */}
+            {plan.hasPlanSettings && !isRealEstate && (
               <PathCard
                 emoji="📋"
-                title="Plano com parcela"
-                subtitle={`Plano sugerido para ${dreamInfo.label.toLowerCase()}`}
+                title="Simulação padrão (genérica)"
+                subtitle="Referência de prazo e parcela — configure planos reais no admin"
               >
                 {plan.suggestedTerm && (
                   <div style={{
@@ -545,14 +665,14 @@ export default async function SonhoPage({ params, searchParams }: Props) {
                     padding: '10px 12px', marginBottom: 8,
                   }}>
                     <p style={{ margin: 0, fontSize: 12, color: C.purpleDeep, fontWeight: 600 }}>
-                      📅 Prazo sugerido: {plan.suggestedTerm} meses
+                      📅 Prazo de referência: {plan.suggestedTerm} meses
                     </p>
                   </div>
                 )}
                 {plan.fullInstallment !== null && plan.fullInstallmentStatus !== null && (
                   <div style={{ marginBottom: 6 }}>
                     <InstallmentRow
-                      label="Parcela padrão"
+                      label="Parcela de referência"
                       value={plan.fullInstallment}
                       status={plan.fullInstallmentStatus}
                     />
@@ -561,14 +681,15 @@ export default async function SonhoPage({ params, searchParams }: Props) {
                 {plan.reducedInstallment !== null && plan.reducedInstallmentStatus !== null && (
                   <div style={{ marginBottom: 8 }}>
                     <InstallmentRow
-                      label="Parcela reduzida"
+                      label="Parcela reduzida (ref.)"
                       value={plan.reducedInstallment}
                       status={plan.reducedInstallmentStatus}
                     />
                   </div>
                 )}
                 <p style={{ margin: 0, fontSize: 10, color: C.textTer, lineHeight: 1.5 }}>
-                  ⚠️ Simulação inicial. Condições sujeitas a análise. Sem compromisso de aprovação.
+                  ⚠️ Simulação genérica — não reflete plano específico para este sonho.
+                  Configure planos reais no painel admin para exibir dados precisos.
                 </p>
               </PathCard>
             )}
@@ -580,7 +701,7 @@ export default async function SonhoPage({ params, searchParams }: Props) {
                 title="Consórcio / Crédito atualizado"
                 subtitle="Carta de crédito sem juros de financiamento"
               >
-                {plan.hasPlanSettings ? (
+                {plan.hasPlanSettings && !isRealEstate ? (
                   <>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, marginBottom: 8 }}>
                       <div style={{ background: C.amberBg, borderRadius: 10, padding: '10px 12px' }}>
@@ -622,12 +743,19 @@ export default async function SonhoPage({ params, searchParams }: Props) {
                     padding: '14px 16px', textAlign: 'center',
                   }}>
                     <p style={{ margin: '0 0 4px', fontSize: 13, fontWeight: 600, color: C.amberDark }}>
-                      Simulação detalhada em breve
+                      {isRealEstate
+                        ? 'Planos de imóvel serão configurados em breve'
+                        : 'Simulação detalhada em breve'}
                     </p>
                     <p style={{ margin: 0, fontSize: 12, color: C.amberDark, lineHeight: 1.5 }}>
                       Carta de crédito estimada:{' '}
                       {primaryDream.target_label ?? fmtBRL(primaryDream.target_amount)}
                     </p>
+                    {isRealEstate && (
+                      <p style={{ margin: '6px 0 0', fontSize: 11, color: C.amberDark }}>
+                        Configure os planos no admin para habilitar esta comparação.
+                      </p>
+                    )}
                   </div>
                 )}
               </PathCard>
@@ -793,6 +921,8 @@ export default async function SonhoPage({ params, searchParams }: Props) {
                 </p>
               </PathCard>
             )}
+
+            </>)} {/* /fallback hardcoded */}
 
             {/* ── PARTE D: Bloco educacional ── */}
             <div style={{
@@ -1049,5 +1179,870 @@ function ActionButtons({ unitSlug }: { unitSlug: string }) {
         </a>
       ))}
     </div>
+  )
+}
+
+// =============================================================================
+// Cards dinâmicos — dream_path_settings
+// =============================================================================
+
+/**
+ * Escala uma parcela conforme calculation_mode.
+ *   fixed        → retorna base sem alterar
+ *   proportional → base * target / default_amount (padrão)
+ *   formula      → chamador usa PMT; este helper trata o fallback proporcional
+ *   null          → backward-compat: proportional
+ */
+function scaleInstallment(
+  base:          number | null,
+  defaultAmount: number | null,
+  target:        number,
+  mode?:         string | null,
+): number | null {
+  if (base === null) return null
+  const m = mode ?? 'proportional'
+  if (m === 'fixed') return base
+  // proportional (e formula como fallback)
+  if (!defaultAmount || defaultAmount <= 0) return base
+  return base * target / defaultAmount
+}
+
+// ── Promoção ─────────────────────────────────────────────────────────────────
+
+type PromoData = {
+  label:               string | null
+  adminFeeRate:        number | null
+  installment:         number | null
+  reducedInstallment:  number | null
+  endsAt:              Date   | null
+}
+
+/**
+ * Retorna os dados de promoção vigente ou null.
+ * Considera promo_active + janela de datas.
+ */
+function resolvePromo(path: DreamPathSetting): PromoData | null {
+  if (!path.promo_active) return null
+  const now = new Date()
+  if (path.promo_starts_at && new Date(path.promo_starts_at) > now) return null
+  if (path.promo_ends_at   && new Date(path.promo_ends_at)   < now) return null
+  return {
+    label:              path.promo_label              ?? null,
+    adminFeeRate:       path.promo_admin_fee_rate      ?? null,
+    installment:        path.promo_installment_amount  ?? null,
+    reducedInstallment: path.promo_reduced_installment_amount ?? null,
+    endsAt:             path.promo_ends_at ? new Date(path.promo_ends_at) : null,
+  }
+}
+
+function PromoBadge({ label, endsAt }: { label: string | null; endsAt: Date | null }) {
+  const endStr = endsAt
+    ? endsAt.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })
+    : null
+  return (
+    <div style={{
+      background: '#FFF7ED', border: '1px solid #FED7AA',
+      borderRadius: 8, padding: '8px 12px', marginBottom: 8,
+      display: 'flex', alignItems: 'center', gap: 6,
+    }}>
+      <span style={{ fontSize: 16, flexShrink: 0 }}>🔥</span>
+      <p style={{ margin: 0, fontSize: 11, fontWeight: 700, color: '#C2410C', lineHeight: 1.4 }}>
+        {label ?? 'Condição promocional ativa'}
+        {endStr && (
+          <span style={{ fontWeight: 400, color: '#9A3412' }}> — até {endStr}</span>
+        )}
+      </p>
+    </div>
+  )
+}
+
+const PATH_ICONS: Record<string, string> = {
+  cash_saving:                '🐷',
+  investment:                 '📈',
+  financing:                  '🏦',
+  cdc:                        '💳',
+  investment_plus_cdc:        '🔀',
+  consortium_traditional:     '🤝',
+  consortium_with_bid:        '🎯',
+  consortium_programmed_date: '📅',
+}
+
+type CardCtx = {
+  target:         number
+  targetLabel:    string | null
+  sobra:          number
+  safeMonthly:    number
+  bestMonths:     number | null
+  planTermMonths: number | null
+}
+
+function renderDynamicPathCard(path: DreamPathSetting, ctx: CardCtx): ReactNode {
+  switch (path.path_type) {
+    case 'cash_saving':                return renderCashSavingCard(path, ctx)
+    case 'investment':                 return renderInvestmentCard(path, ctx)
+    case 'financing':                  return renderFinancingCard(path, ctx, false)
+    case 'cdc':                        return renderFinancingCard(path, ctx, true)
+    case 'investment_plus_cdc':        return renderInvestmentPlusCdcCard(path, ctx)
+    case 'consortium_traditional':     return renderConsortiumTraditionalCard(path, ctx)
+    case 'consortium_with_bid':        return renderConsortiumWithBidCard(path, ctx)
+    case 'consortium_programmed_date': return renderConsortiumProgrammedDateCard(path, ctx)
+    default:                           return null
+  }
+}
+
+function ComparisonBlock() {
+  return (
+    <div style={{
+      background: C.purpleBg, borderRadius: 16,
+      border: `0.5px solid ${C.purple}20`,
+      padding: '16px', marginBottom: 8,
+    }}>
+      <p style={{ margin: '0 0 10px', fontSize: 13, fontWeight: 700, color: C.purpleDeep }}>
+        📊 Por que comparar os caminhos?
+      </p>
+      <p style={{ margin: 0, fontSize: 12, color: C.purpleDeep, lineHeight: 1.6 }}>
+        No investimento, o crescimento acontece sobre o dinheiro que você consegue guardar.
+        No consórcio, a atualização pode acompanhar o valor do crédito contratado, conforme regra do plano.
+        Por isso, para sonhos de alto valor, comparar os caminhos ajuda a tomar uma decisão mais consciente.
+      </p>
+    </div>
+  )
+}
+
+function renderCashSavingCard(path: DreamPathSetting, ctx: CardCtx): ReactNode {
+  const { target, safeMonthly, sobra, planTermMonths } = ctx
+  const baseHorizons = [
+    { months: 12,  label: '1 ano'   },
+    { months: 36,  label: '3 anos'  },
+    { months: 60,  label: '5 anos'  },
+    { months: 84,  label: '7 anos'  },
+    { months: 120, label: '10 anos' },
+  ]
+  // Adicionar prazo do plano se > 120 meses (evitar duplicata)
+  const horizons = (planTermMonths && planTermMonths > 120)
+    ? [...baseHorizons, { months: planTermMonths, label: `${Math.round(planTermMonths / 12)} anos (plano)` }]
+    : baseHorizons
+  return (
+    <PathCard
+      emoji={PATH_ICONS.cash_saving}
+      title={path.label}
+      subtitle={path.description ?? 'Guardar mensalmente até atingir o valor total — sem juros, sem dívida'}
+    >
+      {sobra > 0 ? (
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+          {horizons.map(({ months, label }) => {
+            const em      = safeMonthly * months
+            const reached = em >= target
+            const need    = target / months
+            const gap     = need - safeMonthly
+            const status: GoalStatus =
+              safeMonthly <= 0 ? 'dificil' :
+              gap <= 0         ? 'confortavel' :
+              gap / need <= 0.30 ? 'possivel' : 'dificil'
+            const meta = GOAL_STATUS_META[status]
+            return (
+              <div key={months} style={{
+                background: reached ? C.greenBg : meta.bg,
+                borderRadius: 10, padding: '10px 12px',
+                border: reached ? `0.5px solid ${C.greenDark}30` : 'none',
+                gridColumn: months === 120 ? '1 / -1' : undefined,
+              }}>
+                <p style={{ margin: '0 0 2px', fontSize: 10, color: reached ? C.greenDark : meta.color, fontWeight: 500 }}>
+                  {label}
+                </p>
+                <p style={{ margin: '0 0 4px', fontSize: 14, fontWeight: 700, color: reached ? C.greenDark : meta.color }}>
+                  {fmtBRL(em)}
+                </p>
+                <p style={{ margin: 0, fontSize: 9, color: reached ? C.greenDark : meta.color }}>
+                  {reached ? '✅ Meta atingida!' : meta.label}
+                </p>
+              </div>
+            )
+          })}
+        </div>
+      ) : (
+        <p style={{ fontSize: 12, color: C.textSec, margin: 0, lineHeight: 1.5 }}>
+          Ajuste suas despesas para liberar uma sobra mensal e ver a simulação.
+        </p>
+      )}
+    </PathCard>
+  )
+}
+
+function renderInvestmentCard(path: DreamPathSetting, ctx: CardCtx): ReactNode {
+  const { target, safeMonthly, sobra, planTermMonths } = ctx
+  const annual     = path.annual_return_rate ?? 0.12
+  const mRate      = annualToMonthlyRate(annual)
+  const annualPct  = Math.round(annual * 100)
+  const termMonths = path.term_months ?? 48
+  // Incluir planTermMonths para comparação com prazo do consórcio/financiamento
+  const rawH   = planTermMonths
+    ? [12, 36, termMonths, planTermMonths]
+    : [12, 24, 36, termMonths]
+  const horizons = rawH.filter((v, i, a) => a.indexOf(v) === i).sort((a, b) => a - b).slice(0, 5)
+
+  return (
+    <PathCard
+      emoji={PATH_ICONS.investment}
+      title={path.label}
+      subtitle={path.description ?? `Investimento com projeção a ${annualPct}% a.a. — rendimento não garantido`}
+    >
+      {sobra > 0 ? (
+        <>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, marginBottom: 8 }}>
+            {horizons.map(months => {
+              const totalInvested = safeMonthly * months
+              const fv      = futureValue(safeMonthly, months, mRate)
+              const gain    = fv - totalInvested
+              const reached = fv >= target
+              const yrs     = months / 12
+              const lbl     = Number.isInteger(yrs) ? `${yrs} ${yrs === 1 ? 'ano' : 'anos'}` : `${months}m`
+              return (
+                <div key={months} style={{
+                  background: reached ? C.greenBg : C.purpleBg,
+                  borderRadius: 10, padding: '10px 12px',
+                }}>
+                  <p style={{ margin: '0 0 2px', fontSize: 10, color: reached ? C.greenDark : C.purpleDeep, fontWeight: 500 }}>
+                    {lbl}
+                  </p>
+                  <p style={{ margin: '0 0 1px', fontSize: 14, fontWeight: 700, color: reached ? C.greenDark : C.purpleDeep }}>
+                    {fmtBRL(fv)}
+                  </p>
+                  <p style={{ margin: '0 0 1px', fontSize: 9, color: reached ? C.greenDark : C.purpleDeep }}>
+                    Aportado: {fmtBRL(totalInvested)}
+                  </p>
+                  {path.show_capital_gain && gain > 0 && (
+                    <p style={{ margin: 0, fontSize: 9, color: reached ? C.greenDark : C.purpleDeep }}>
+                      +{fmtBRL(gain)} estimado
+                    </p>
+                  )}
+                  {reached && <p style={{ margin: 0, fontSize: 9, color: C.greenDark }}>✅ Meta!</p>}
+                </div>
+              )
+            })}
+          </div>
+          <p style={{ margin: 0, fontSize: 10, color: C.textTer, lineHeight: 1.5 }}>
+            ⚠️ Simulação a {annualPct}% a.a. Rendimento estimado — não é garantido. Depende da aplicação escolhida.
+          </p>
+        </>
+      ) : (
+        <p style={{ fontSize: 12, color: C.textSec, margin: 0, lineHeight: 1.5 }}>
+          Libere uma sobra mensal para simular o crescimento do investimento.
+        </p>
+      )}
+    </PathCard>
+  )
+}
+
+function renderFinancingCard(path: DreamPathSetting, ctx: CardCtx, isCdc: boolean): ReactNode {
+  const { target, sobra } = ctx
+  const termMonths = path.term_months ?? 48
+  const mode       = path.calculation_mode ?? null
+
+  const mRate = path.monthly_interest_rate
+    ?? (path.annual_interest_rate !== null ? annualToMonthlyRate(path.annual_interest_rate!) : null)
+
+  // BLOCO 2 — calculation_mode
+  // formula (ou null com taxa): usar PMT
+  // proportional sem taxa / null sem taxa: escalar
+  // fixed: usar valor cadastrado exato
+  const useFormula = mode === 'formula'
+    ? (mRate !== null)
+    : (mode === null && mRate !== null)   // backward-compat: usa PMT quando taxa existe
+
+  const baseFull: number | null = useFormula && mRate !== null
+    ? Math.round(calcInstallment(target, mRate, termMonths))
+    : scaleInstallment(path.full_installment_amount, path.default_amount, target, mode)
+  const baseReduced = scaleInstallment(path.reduced_installment_amount, path.default_amount, target, mode)
+
+  // BLOCO 3 — promoção
+  const promo           = resolvePromo(path)
+  const fullInstallment = promo?.installment !== null && promo !== null
+    ? scaleInstallment(promo.installment,         path.default_amount, target, mode)
+    : baseFull
+  const reducedInstallment = promo?.reducedInstallment !== null && promo !== null
+    ? scaleInstallment(promo.reducedInstallment, path.default_amount, target, mode)
+    : baseReduced
+
+  const promoFullEconomy    = (promo && fullInstallment !== null    && baseFull    !== null && baseFull    > fullInstallment)    ? baseFull    - fullInstallment    : null
+  const promoReducedEconomy = (promo && reducedInstallment !== null && baseReduced !== null && baseReduced > reducedInstallment) ? baseReduced - reducedInstallment : null
+
+  const totalPaid     = fullInstallment !== null ? fullInstallment * termMonths : null
+  const financingCost = totalPaid !== null ? totalPaid - target : null
+  const annualPct     = path.annual_interest_rate !== null
+    ? ` (${Math.round((path.annual_interest_rate ?? 0) * 100)}% a.a.)`
+    : ''
+
+  const fullStatus    = evalInstallmentStatus(fullInstallment, sobra)
+  const reducedStatus = evalInstallmentStatus(reducedInstallment, sobra)
+  const emoji  = isCdc ? PATH_ICONS.cdc : PATH_ICONS.financing
+  const defSub = isCdc
+    ? 'Crédito direto ao consumidor — sujeito à análise e condições'
+    : 'Financiamento com parcelas mensais — sujeito à análise e condições'
+
+  return (
+    <PathCard
+      emoji={emoji}
+      title={path.label}
+      subtitle={path.description ?? defSub}
+    >
+      {/* BLOCO 3 — badge de promoção */}
+      {promo && <PromoBadge label={promo.label} endsAt={promo.endsAt} />}
+
+      {fullInstallment !== null && fullStatus !== null && (
+        <div style={{ marginBottom: 6 }}>
+          <InstallmentRow label={promo ? 'Parcela promocional 🔥' : 'Parcela estimada'} value={fullInstallment} status={fullStatus} />
+          {promoFullEconomy !== null && (
+            <p style={{ margin: '3px 0 0', fontSize: 10, color: '#C2410C' }}>
+              <span style={{ textDecoration: 'line-through', color: C.textTer }}>{fmtBRL(baseFull!)}/mês</span>
+              {' '}→ 💰 economia de {fmtBRL(promoFullEconomy)}/mês
+            </p>
+          )}
+        </div>
+      )}
+      {reducedInstallment !== null && reducedStatus !== null && (
+        <div style={{ marginBottom: 6 }}>
+          <InstallmentRow
+            label={promo ? 'Parc. reduzida promo. 🔥' : `Parcela c/ entrada${path.down_payment_percent ? ` (${Math.round(path.down_payment_percent * 100)}%)` : ''}`}
+            value={reducedInstallment}
+            status={reducedStatus}
+          />
+          {promoReducedEconomy !== null && (
+            <p style={{ margin: '3px 0 0', fontSize: 10, color: '#C2410C' }}>
+              <span style={{ textDecoration: 'line-through', color: C.textTer }}>{fmtBRL(baseReduced!)}/mês</span>
+              {' '}→ 💰 economia de {fmtBRL(promoReducedEconomy)}/mês
+            </p>
+          )}
+        </div>
+      )}
+      {path.show_total_cost && totalPaid !== null && (
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, marginBottom: 8 }}>
+          <div style={{ background: C.bgApp, borderRadius: 10, padding: '10px 12px', border: `0.5px solid ${C.border}` }}>
+            <p style={{ margin: '0 0 2px', fontSize: 10, color: C.textSec, fontWeight: 500 }}>Prazo</p>
+            <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: C.text }}>{termMonths} meses</p>
+          </div>
+          <div style={{ background: C.bgApp, borderRadius: 10, padding: '10px 12px', border: `0.5px solid ${C.border}` }}>
+            <p style={{ margin: '0 0 2px', fontSize: 10, color: C.textSec, fontWeight: 500 }}>Total pago est.</p>
+            <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: C.text }}>{fmtBRL(totalPaid)}</p>
+          </div>
+          {financingCost !== null && financingCost > 0 && (
+            <div style={{
+              gridColumn: '1 / -1',
+              background: C.coralBg, borderRadius: 10, padding: '10px 12px',
+              border: `0.5px solid ${C.coral}20`,
+            }}>
+              <p style={{ margin: '0 0 2px', fontSize: 10, color: C.coralDark, fontWeight: 500 }}>Custo financeiro est.</p>
+              <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: C.coralDark }}>
+                {fmtBRL(financingCost)}{annualPct}
+              </p>
+            </div>
+          )}
+        </div>
+      )}
+      <p style={{ margin: 0, fontSize: 10, color: C.textTer, lineHeight: 1.5 }}>
+        ⚠️ Simulação inicial. Sujeito à análise de crédito e condições do produto. Sem compromisso de aprovação.
+      </p>
+    </PathCard>
+  )
+}
+
+function renderInvestmentPlusCdcCard(path: DreamPathSetting, ctx: CardCtx): ReactNode {
+  const { target, targetLabel, safeMonthly, sobra } = ctx
+  const accum12    = safeMonthly * 12
+  const accum24    = safeMonthly * 24
+  const remaining12 = Math.max(0, target - accum12)
+  const remaining24 = Math.max(0, target - accum24)
+
+  return (
+    <PathCard
+      emoji={PATH_ICONS.investment_plus_cdc}
+      title={path.label}
+      subtitle={path.description ?? 'Acumule uma entrada investindo e financie o saldo com CDC'}
+    >
+      <div style={{ background: C.purpleBg, borderRadius: 10, padding: '12px 14px', marginBottom: 8 }}>
+        <p style={{ margin: '0 0 4px', fontSize: 11, fontWeight: 700, color: C.purpleDeep }}>
+          💡 Estratégia híbrida
+        </p>
+        <p style={{ margin: 0, fontSize: 11, color: C.purpleDeep, lineHeight: 1.5 }}>
+          Invista por um período para acumular a entrada. Depois use CDC ou financiamento para o saldo restante.
+        </p>
+      </div>
+      {sobra > 0 ? (
+        <>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, marginBottom: 8 }}>
+            <div style={{ background: C.bgApp, borderRadius: 10, padding: '10px 12px', border: `0.5px solid ${C.border}` }}>
+              <p style={{ margin: '0 0 2px', fontSize: 10, color: C.textSec, fontWeight: 500 }}>Acumulado em 1 ano</p>
+              <p style={{ margin: '0 0 2px', fontSize: 13, fontWeight: 700, color: C.text }}>{fmtBRL(accum12)}</p>
+              {remaining12 > 0 && <p style={{ margin: 0, fontSize: 9, color: C.textSec }}>Saldo: {fmtBRL(remaining12)}</p>}
+              {remaining12 === 0 && <p style={{ margin: 0, fontSize: 9, color: C.greenDark }}>✅ Meta!</p>}
+            </div>
+            <div style={{ background: C.bgApp, borderRadius: 10, padding: '10px 12px', border: `0.5px solid ${C.border}` }}>
+              <p style={{ margin: '0 0 2px', fontSize: 10, color: C.textSec, fontWeight: 500 }}>Acumulado em 2 anos</p>
+              <p style={{ margin: '0 0 2px', fontSize: 13, fontWeight: 700, color: C.text }}>{fmtBRL(accum24)}</p>
+              {remaining24 > 0 && <p style={{ margin: 0, fontSize: 9, color: C.textSec }}>Saldo: {fmtBRL(remaining24)}</p>}
+              {remaining24 === 0 && <p style={{ margin: 0, fontSize: 9, color: C.greenDark }}>✅ Meta!</p>}
+            </div>
+          </div>
+          <p style={{ margin: 0, fontSize: 10, color: C.textTer, lineHeight: 1.5 }}>
+            ⚠️ Simulação inicial. CDC sujeito à análise. Rendimento do investimento não é garantido.
+          </p>
+        </>
+      ) : (
+        <p style={{ fontSize: 12, color: C.textSec, margin: 0, lineHeight: 1.5 }}>
+          Libere uma sobra mensal para ver quanto você pode acumular para a entrada.
+        </p>
+      )}
+    </PathCard>
+  )
+}
+
+// =============================================================================
+// Carta Contemplada — Oportunidade de venda com ágio
+// Usada em consortium_traditional e consortium_with_bid
+// Nunca prometer venda, ágio fixo ou contemplação garantida.
+// =============================================================================
+
+function CartaContemplacaoBlock({
+  credit, installment, premiumPct,
+}: {
+  credit: number
+  installment: number
+  premiumPct: number
+}): ReactNode {
+  const scenarios = [1, 3, 6, 12] as const
+  const valorAgio = credit * premiumPct
+
+  return (
+    <div style={{
+      background: C.greenBg, borderRadius: 12, padding: '12px 14px',
+      border: `0.5px solid ${C.greenDark}20`, marginBottom: 8,
+    }}>
+      <p style={{ margin: '0 0 8px', fontSize: 10, fontWeight: 700, color: C.greenDark }}>
+        💡 Se for contemplado — potencial com a venda da carta
+      </p>
+
+      {/* Resumo: crédito, ágio e potencial */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 3, marginBottom: 6 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+          <p style={{ margin: 0, fontSize: 9, color: C.greenDark }}>Carta de crédito</p>
+          <p style={{ margin: 0, fontSize: 9, fontWeight: 700, color: C.greenDark }}>{fmtBRL(credit)}</p>
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+          <p style={{ margin: 0, fontSize: 9, color: C.greenDark }}>
+            Ágio médio estimado {Math.round(premiumPct * 100)}%
+          </p>
+          <p style={{ margin: 0, fontSize: 9, fontWeight: 700, color: C.greenDark }}>{fmtBRL(valorAgio)}</p>
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+          <p style={{ margin: 0, fontSize: 9, color: C.greenDark }}>Potencial de recebimento pela venda</p>
+          <p style={{ margin: 0, fontSize: 9, fontWeight: 700, color: C.greenDark }}>{fmtBRL(valorAgio)}</p>
+        </div>
+      </div>
+      <p style={{ margin: '0 0 8px', fontSize: 9, color: C.greenDark, lineHeight: 1.4 }}>
+        O comprador assume a carta e as parcelas conforme negociação e regras da administradora.
+      </p>
+
+      {/* Cenários: ganho bruto por nº de parcelas pagas */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 4, marginBottom: 8 }}>
+        {scenarios.map(n => {
+          const totalPago  = installment * n
+          const ganhoBruto = valorAgio - totalPago
+          const positivo   = ganhoBruto >= 0
+          return (
+            <div key={n} style={{
+              background: '#fff', borderRadius: 8, padding: '6px 4px', textAlign: 'center',
+              border: `0.5px solid ${C.greenDark}20`,
+            }}>
+              <p style={{ margin: '0 0 2px', fontSize: 8, color: C.textSec, fontWeight: 600 }}>
+                {n === 1 ? '1 parcela' : `${n} parcelas`}
+              </p>
+              <p style={{ margin: '0 0 3px', fontSize: 8, color: C.textSec }}>
+                pago {fmtBRL(totalPago)}
+              </p>
+              <p style={{ margin: '0 0 1px', fontSize: 8, color: C.textSec }}>ganho bruto est.</p>
+              <p style={{
+                margin: 0, fontSize: 10, fontWeight: 800,
+                color: positivo ? C.greenDark : C.textSec,
+              }}>
+                {fmtBRL(ganhoBruto)}
+              </p>
+            </div>
+          )
+        })}
+      </div>
+
+      <p style={{ margin: 0, fontSize: 9, color: C.greenDark, lineHeight: 1.4 }}>
+        ⚠️ Ágio médio estimado — varia com o mercado. Não é garantia de venda nem de valor fixo.
+        Requer encontrar comprador. Simulação inicial.
+      </p>
+    </div>
+  )
+}
+
+function renderConsortiumTraditionalCard(path: DreamPathSetting, ctx: CardCtx): ReactNode {
+  const { target, targetLabel, sobra } = ctx
+  const termMonths    = path.term_months ?? 60
+  const mode          = path.calculation_mode ?? null
+
+  // BLOCO 2 — calculation_mode
+  const baseInstallment = scaleInstallment(path.full_installment_amount,    path.default_amount, target, mode)
+  const baseReduced     = scaleInstallment(path.reduced_installment_amount, path.default_amount, target, mode)
+
+  // BLOCO 3 — promoção
+  const promo              = resolvePromo(path)
+  const installment        = promo?.installment         !== null && promo !== null
+    ? scaleInstallment(promo.installment,         path.default_amount, target, mode)
+    : baseInstallment
+  const reducedInstallment = promo?.reducedInstallment  !== null && promo !== null
+    ? scaleInstallment(promo.reducedInstallment,  path.default_amount, target, mode)
+    : baseReduced
+
+  const promoEconomy        = (promo && installment        !== null && baseInstallment !== null && baseInstallment > installment)        ? baseInstallment - installment        : null
+  const promoReducedEconomy = (promo && reducedInstallment !== null && baseReduced     !== null && baseReduced     > reducedInstallment) ? baseReduced     - reducedInstallment : null
+
+  const totalCost     = installment !== null ? installment * termMonths : null
+  const fullStatus    = evalInstallmentStatus(installment, sobra)
+  const reducedStatus = evalInstallmentStatus(reducedInstallment, sobra)
+  const premiumPct    = path.average_letter_premium_percent ?? null
+
+  return (
+    <PathCard
+      emoji={PATH_ICONS.consortium_traditional}
+      title={path.label}
+      subtitle={path.description ?? 'Consórcio sem juros de financiamento — crédito atualizado'}
+    >
+      {/* BLOCO 3 — badge de promoção */}
+      {promo && <PromoBadge label={promo.label} endsAt={promo.endsAt} />}
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, marginBottom: 8 }}>
+        <div style={{ background: C.amberBg, borderRadius: 10, padding: '10px 12px' }}>
+          <p style={{ margin: '0 0 2px', fontSize: 10, color: C.amberDark, fontWeight: 500 }}>Crédito desejado</p>
+          <p style={{ margin: 0, fontSize: 14, fontWeight: 700, color: C.amberDark }}>
+            {targetLabel ?? fmtBRL(target)}
+          </p>
+        </div>
+        <div style={{ background: C.amberBg, borderRadius: 10, padding: '10px 12px' }}>
+          <p style={{ margin: '0 0 2px', fontSize: 10, color: C.amberDark, fontWeight: 500 }}>Prazo estimado</p>
+          <p style={{ margin: 0, fontSize: 14, fontWeight: 700, color: C.amberDark }}>{termMonths} meses</p>
+        </div>
+      </div>
+      {installment !== null && fullStatus !== null && (
+        <div style={{ marginBottom: 6 }}>
+          <InstallmentRow label={promo ? 'Parcela promocional 🔥' : 'Parcela estimada'} value={installment} status={fullStatus} />
+          {promoEconomy !== null && (
+            <p style={{ margin: '3px 0 0', fontSize: 10, color: '#C2410C' }}>
+              <span style={{ textDecoration: 'line-through', color: C.textTer }}>{fmtBRL(baseInstallment!)}/mês</span>
+              {' '}→ 💰 economia de {fmtBRL(promoEconomy)}/mês
+            </p>
+          )}
+        </div>
+      )}
+      {reducedInstallment !== null && reducedStatus !== null && (
+        <div style={{ marginBottom: 6 }}>
+          <InstallmentRow label={promo ? 'Parc. c/ lance promo. 🔥' : 'Parcela c/ lance'} value={reducedInstallment} status={reducedStatus} />
+          {promoReducedEconomy !== null && (
+            <p style={{ margin: '3px 0 0', fontSize: 10, color: '#C2410C' }}>
+              <span style={{ textDecoration: 'line-through', color: C.textTer }}>{fmtBRL(baseReduced!)}/mês</span>
+              {' '}→ 💰 economia de {fmtBRL(promoReducedEconomy)}/mês
+            </p>
+          )}
+        </div>
+      )}
+      {path.show_total_cost && totalCost !== null && (
+        <div style={{ background: C.bgApp, borderRadius: 10, padding: '10px 12px', border: `0.5px solid ${C.border}`, marginBottom: 8 }}>
+          <p style={{ margin: '0 0 2px', fontSize: 10, color: C.textSec, fontWeight: 500 }}>Total pago estimado</p>
+          <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: C.text }}>{fmtBRL(totalCost)}</p>
+        </div>
+      )}
+
+      {/* Bloco Carta Contemplada — só exibe se ágio configurado */}
+      {premiumPct !== null && installment !== null && (
+        <CartaContemplacaoBlock credit={target} installment={installment} premiumPct={premiumPct} />
+      )}
+
+      <p style={{ margin: 0, fontSize: 10, color: C.textTer, lineHeight: 1.5 }}>
+        ⚠️ Simulação inicial. Contemplação não é garantida — depende de sorteio ou lance.
+        O crédito contratado pode ser atualizado conforme regra do plano.
+      </p>
+    </PathCard>
+  )
+}
+
+function renderConsortiumWithBidCard(path: DreamPathSetting, ctx: CardCtx): ReactNode {
+  const { target, targetLabel, sobra } = ctx
+  const bidPct         = path.bid_percent ?? 0.25
+  const bidAmount      = target * bidPct
+  const mode           = path.calculation_mode ?? null
+
+  // BLOCO 2 — calculation_mode
+  const baseInstallment = scaleInstallment(path.full_installment_amount, path.default_amount, target, mode)
+
+  // BLOCO 3 — promoção
+  const promo           = resolvePromo(path)
+  const installment     = promo?.installment !== null && promo !== null
+    ? scaleInstallment(promo.installment, path.default_amount, target, mode)
+    : baseInstallment
+  const promoEconomy    = (promo && installment !== null && baseInstallment !== null && baseInstallment > installment)
+    ? baseInstallment - installment : null
+
+  const installmentStatus = evalInstallmentStatus(installment, sobra)
+  const premiumPct        = path.average_letter_premium_percent ?? null
+
+  return (
+    <PathCard
+      emoji={PATH_ICONS.consortium_with_bid}
+      title={path.label}
+      subtitle={path.description ?? 'Oferte um lance para antecipar sua contemplação'}
+    >
+      {/* BLOCO 3 — badge de promoção */}
+      {promo && <PromoBadge label={promo.label} endsAt={promo.endsAt} />}
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, marginBottom: 8 }}>
+        <div style={{ background: C.amberBg, borderRadius: 10, padding: '10px 12px' }}>
+          <p style={{ margin: '0 0 2px', fontSize: 10, color: C.amberDark, fontWeight: 500 }}>Crédito desejado</p>
+          <p style={{ margin: 0, fontSize: 14, fontWeight: 700, color: C.amberDark }}>
+            {targetLabel ?? fmtBRL(target)}
+          </p>
+        </div>
+        <div style={{ background: C.amberBg, borderRadius: 10, padding: '10px 12px' }}>
+          <p style={{ margin: '0 0 2px', fontSize: 10, color: C.amberDark, fontWeight: 500 }}>
+            Lance est. ({Math.round(bidPct * 100)}%)
+          </p>
+          <p style={{ margin: 0, fontSize: 14, fontWeight: 700, color: C.amberDark }}>{fmtBRL(bidAmount)}</p>
+        </div>
+      </div>
+      {installment !== null && installmentStatus !== null && (
+        <div style={{ marginBottom: 8 }}>
+          <InstallmentRow label={promo ? 'Parcela c/ lance promo. 🔥' : 'Parcela est. (c/ lance)'} value={installment} status={installmentStatus} />
+          {promoEconomy !== null && (
+            <p style={{ margin: '3px 0 0', fontSize: 10, color: '#C2410C' }}>
+              <span style={{ textDecoration: 'line-through', color: C.textTer }}>{fmtBRL(baseInstallment!)}/mês</span>
+              {' '}→ 💰 economia de {fmtBRL(promoEconomy)}/mês
+            </p>
+          )}
+        </div>
+      )}
+
+      {/* Bloco Carta Contemplada — só exibe se ágio configurado */}
+      {premiumPct !== null && installment !== null && (
+        <CartaContemplacaoBlock credit={target} installment={installment} premiumPct={premiumPct} />
+      )}
+
+      <p style={{ margin: 0, fontSize: 10, color: C.textTer, lineHeight: 1.5 }}>
+        ⚠️ Simulação inicial. Lance não garante contemplação — depende das regras da administradora.
+        O crédito contratado pode ser atualizado conforme regra do plano.
+      </p>
+    </PathCard>
+  )
+}
+
+function renderConsortiumProgrammedDateCard(path: DreamPathSetting, ctx: CardCtx): ReactNode {
+  const { target, targetLabel, sobra, bestMonths } = ctx
+
+  // ── Parâmetros do plano ──────────────────────────────────────────────────────
+  const termMonths          = path.term_months                            ?? 60
+  const contemMonth         = path.programmed_contemplation_month         ?? 24
+  const anticipStartMonth   = path.anticipation_start_month               ?? 6
+  const anticipInstallments = path.anticipation_installments              ?? 18
+  const requiredPaid        = path.required_paid_installments_for_credit  ?? (anticipStartMonth + anticipInstallments)
+  const groupSize           = path.group_size                             ?? null
+  const drawsPerMonth       = path.draws_per_month                        ?? null
+  const mode                = path.calculation_mode                       ?? null
+
+  // BLOCO 2 — calculation_mode
+  const baseInstallment   = scaleInstallment(path.full_installment_amount, path.default_amount, target, mode)
+
+  // BLOCO 3 — promoção
+  const promo             = resolvePromo(path)
+  const installment       = promo?.installment !== null && promo !== null
+    ? scaleInstallment(promo.installment, path.default_amount, target, mode)
+    : baseInstallment
+  const promoEconomy      = (promo && installment !== null && baseInstallment !== null && baseInstallment > installment)
+    ? baseInstallment - installment : null
+
+  const installmentStatus   = evalInstallmentStatus(installment, sobra)
+
+  // ── Fórmulas oficiais do Plano Pontual ───────────────────────────────────────
+  // Fase 1 (meses 1–6): pagar normalmente
+  // Fase 2 (mês 6): antecipar 18 parcelas → buscar carta no mês 24
+  // Total desembolsado para buscar crédito = requiredPaid × parcela (= 24)
+  // Saldo restante = (termMonths − requiredPaid) × parcela (= 36 parcelas)
+  // Meses restantes = termMonths − anticipStartMonth (= 54)
+  // Nova parcela = saldo_restante / meses_restantes
+  const paidUntilStart   = installment !== null ? installment * anticipStartMonth    : null
+  const anticipationAmt  = installment !== null ? installment * anticipInstallments  : null
+  const totalDesembolso  = installment !== null ? installment * requiredPaid         : null
+  const saldoRestante    = installment !== null ? installment * (termMonths - requiredPaid) : null
+  const mesesRestantes   = termMonths - anticipStartMonth
+  const novaParcela      = saldoRestante !== null ? saldoRestante / mesesRestantes   : null
+
+  return (
+    <PathCard
+      emoji={PATH_ICONS.consortium_programmed_date}
+      title={path.label}
+      subtitle={path.description ?? `Plano de ${termMonths} meses — contemplação programada no mês ${contemMonth}`}
+    >
+      {/* BLOCO 3 — badge de promoção */}
+      {promo && <PromoBadge label={promo.label} endsAt={promo.endsAt} />}
+
+      {/* Crédito + Prazo total do plano */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, marginBottom: 8 }}>
+        <div style={{ background: C.amberBg, borderRadius: 10, padding: '10px 12px' }}>
+          <p style={{ margin: '0 0 2px', fontSize: 10, color: C.amberDark, fontWeight: 500 }}>Crédito desejado</p>
+          <p style={{ margin: 0, fontSize: 14, fontWeight: 700, color: C.amberDark }}>
+            {targetLabel ?? fmtBRL(target)}
+          </p>
+        </div>
+        <div style={{ background: C.amberBg, borderRadius: 10, padding: '10px 12px' }}>
+          <p style={{ margin: '0 0 2px', fontSize: 10, color: C.amberDark, fontWeight: 500 }}>Prazo total do plano</p>
+          <p style={{ margin: 0, fontSize: 14, fontWeight: 700, color: C.amberDark }}>{termMonths} meses</p>
+        </div>
+      </div>
+
+      {/* Info do grupo */}
+      {(groupSize !== null || drawsPerMonth !== null) && (
+        <div style={{
+          display: 'flex', gap: 6, marginBottom: 8,
+        }}>
+          {groupSize !== null && (
+            <div style={{ flex: 1, background: C.bgApp, borderRadius: 10, padding: '8px 12px', border: `0.5px solid ${C.border}` }}>
+              <p style={{ margin: '0 0 1px', fontSize: 9, color: C.textSec, fontWeight: 500 }}>Grupo</p>
+              <p style={{ margin: 0, fontSize: 12, fontWeight: 700, color: C.text }}>{groupSize} participantes</p>
+            </div>
+          )}
+          {drawsPerMonth !== null && (
+            <div style={{ flex: 1, background: C.bgApp, borderRadius: 10, padding: '8px 12px', border: `0.5px solid ${C.border}` }}>
+              <p style={{ margin: '0 0 1px', fontSize: 9, color: C.textSec, fontWeight: 500 }}>Sorteios</p>
+              <p style={{ margin: 0, fontSize: 12, fontWeight: 700, color: C.text }}>{drawsPerMonth}x por mês</p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Parcela estimada (fases 1 e 2) */}
+      {installment !== null && installmentStatus !== null && (
+        <div style={{ marginBottom: 6 }}>
+        <div style={{
+          background: C.purpleBg, borderRadius: 10,
+          padding: '10px 14px',
+          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+        }}>
+          <div>
+            <p style={{ margin: '0 0 1px', fontSize: 10, fontWeight: 600, color: C.purpleDeep }}>
+              {promo ? 'Parcela promocional 🔥' : 'Parcela estimada (referência)'}
+            </p>
+            <p style={{ margin: 0, fontSize: 10, color: C.purpleDeep }}>
+              meses 1 a {anticipStartMonth}, depois antecipa {anticipInstallments}
+            </p>
+          </div>
+          <p style={{ margin: 0, fontSize: 16, fontWeight: 800, color: C.purpleDeep }}>
+            {fmtBRLPlan(installment)}<span style={{ fontSize: 10, fontWeight: 500 }}>/mês</span>
+          </p>
+        </div>
+        {promoEconomy !== null && (
+          <p style={{ margin: '3px 0 0', fontSize: 10, color: '#C2410C' }}>
+            <span style={{ textDecoration: 'line-through', color: C.textTer }}>{fmtBRL(baseInstallment!)}/mês</span>
+            {' '}→ 💰 economia de {fmtBRL(promoEconomy)}/mês
+          </p>
+        )}
+        </div>
+      )}
+
+      {/* Como funciona — fases */}
+      {paidUntilStart !== null && anticipationAmt !== null && totalDesembolso !== null && (
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, marginBottom: 8 }}>
+          <div style={{ background: C.bgApp, borderRadius: 10, padding: '10px 12px', border: `0.5px solid ${C.border}` }}>
+            <p style={{ margin: '0 0 2px', fontSize: 9, color: C.textSec, fontWeight: 500 }}>
+              Pago nos {anticipStartMonth} primeiros meses
+            </p>
+            <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: C.text }}>
+              {fmtBRL(paidUntilStart)}
+            </p>
+          </div>
+          <div style={{ background: C.bgApp, borderRadius: 10, padding: '10px 12px', border: `0.5px solid ${C.border}` }}>
+            <p style={{ margin: '0 0 2px', fontSize: 9, color: C.textSec, fontWeight: 500 }}>
+              Antecipação de {anticipInstallments} parcelas
+            </p>
+            <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: C.text }}>
+              {fmtBRL(anticipationAmt)}
+            </p>
+          </div>
+
+          {/* Total desembolsado para buscar o crédito */}
+          <div style={{
+            gridColumn: '1 / -1',
+            background: C.greenBg, borderRadius: 10, padding: '10px 12px',
+            border: `0.5px solid ${C.greenDark}20`,
+            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+          }}>
+            <div>
+              <p style={{ margin: '0 0 1px', fontSize: 9, fontWeight: 600, color: C.greenDark }}>
+                Total para buscar a carta (mês {contemMonth})
+              </p>
+              <p style={{ margin: 0, fontSize: 9, color: C.greenDark }}>
+                {anticipStartMonth} normais + {anticipInstallments} antecipadas = {requiredPaid} parcelas
+              </p>
+            </div>
+            <p style={{ margin: 0, fontSize: 15, fontWeight: 800, color: C.greenDark }}>
+              {fmtBRL(totalDesembolso)}
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Após a contemplação — nova parcela */}
+      {novaParcela !== null && saldoRestante !== null && (
+        <div style={{
+          background: C.bgApp, borderRadius: 10, padding: '10px 12px',
+          border: `0.5px solid ${C.border}`, marginBottom: 8,
+        }}>
+          <p style={{ margin: '0 0 6px', fontSize: 10, fontWeight: 700, color: C.text }}>
+            📋 Após buscar o crédito (meses {contemMonth + 1}–{termMonths})
+          </p>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div>
+              <p style={{ margin: '0 0 1px', fontSize: 9, color: C.textSec }}>
+                Saldo restante ({termMonths - requiredPaid} parcelas em {mesesRestantes} meses)
+              </p>
+              <p style={{ margin: 0, fontSize: 11, fontWeight: 600, color: C.textSec }}>
+                {fmtBRL(saldoRestante)}
+              </p>
+            </div>
+            <div style={{ textAlign: 'right' }}>
+              <p style={{ margin: '0 0 1px', fontSize: 9, color: C.textSec }}>Nova parcela est.</p>
+              <p style={{ margin: 0, fontSize: 14, fontWeight: 800, color: C.text }}>
+                {fmtBRLPlan(novaParcela)}<span style={{ fontSize: 9, fontWeight: 500 }}>/mês</span>
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Comparação com poupança direta */}
+      {bestMonths !== null && (
+        <div style={{ background: C.purpleBg, borderRadius: 10, padding: '10px 12px', marginBottom: 8 }}>
+          <p style={{ margin: '0 0 5px', fontSize: 10, fontWeight: 700, color: C.purpleDeep }}>
+            📊 Comparação com juntar sozinho
+          </p>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+            <div>
+              <p style={{ margin: '0 0 1px', fontSize: 9, color: C.purpleDeep }}>Poupança direta</p>
+              <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: C.purpleDeep }}>{bestMonths} meses</p>
+            </div>
+            <span style={{ fontSize: 14, color: C.purpleDeep }}>→</span>
+            <div style={{ textAlign: 'right' }}>
+              <p style={{ margin: '0 0 1px', fontSize: 9, color: C.purpleDeep }}>Plano Pontual</p>
+              <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: C.purpleDeep }}>crédito no mês {contemMonth}</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <p style={{ margin: 0, fontSize: 10, color: C.textTer, lineHeight: 1.5 }}>
+        ⚠️ Simulação inicial. Contemplação programada conforme regra do plano — valores sujeitos
+        à correção conforme contrato. Condições dependem da administradora e do produto.
+        Sorteio mensal. Não há garantia de contemplação.
+      </p>
+    </PathCard>
   )
 }

@@ -153,3 +153,118 @@ export function calculateDreamPlan(
 export function fmtBRLPlan(value: number): string {
   return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 })
 }
+
+// =============================================================================
+// Dream Path Settings — tipos e helpers para caminhos dinâmicos do banco
+// =============================================================================
+
+export type PathType =
+  | 'cash_saving'
+  | 'investment'
+  | 'financing'
+  | 'cdc'
+  | 'investment_plus_cdc'
+  | 'consortium_traditional'
+  | 'consortium_with_bid'
+  | 'consortium_programmed_date'
+
+export interface DreamPathSetting {
+  path_type: PathType
+  dream_subtype: string | null
+  label: string
+  description: string | null
+  sort_order: number
+  show_capital_gain: boolean
+  show_total_cost: boolean
+  default_amount: number | null
+  term_months: number | null
+  annual_return_rate: number | null
+  monthly_interest_rate: number | null
+  annual_interest_rate: number | null
+  admin_fee_rate: number | null
+  admin_fee_base: string | null
+  down_payment_percent: number | null
+  bid_percent: number | null
+  programmed_contemplation_month: number | null
+  anticipation_start_month: number | null
+  anticipation_installments: number | null
+  full_installment_amount: number | null
+  reduced_installment_amount: number | null
+  // ── Campos do Plano Pontual e Carta Contemplada ────────────────────────────
+  /** Tamanho do grupo (ex: 180 participantes) */
+  group_size: number | null
+  /** Sorteios por mês (ex: 1) */
+  draws_per_month: number | null
+  /** Total de parcelas pagas para buscar a carta de crédito (ex: 24 = 6 + 18) */
+  required_paid_installments_for_credit: number | null
+  /** Ágio médio de carta contemplada como decimal (ex: 0.40 = 40%). Não é garantia. */
+  average_letter_premium_percent: number | null
+  // ── Modo de cálculo ────────────────────────────────────────────────────────
+  /** 'fixed' | 'proportional' | 'formula' | null (padrão: proportional) */
+  calculation_mode: string | null
+  // ── Promoção ───────────────────────────────────────────────────────────────
+  promo_active:                     boolean | null
+  promo_label:                      string  | null
+  promo_starts_at:                  string  | null
+  promo_ends_at:                    string  | null
+  promo_admin_fee_rate:             number  | null
+  promo_installment_amount:         number  | null
+  promo_reduced_installment_amount: number  | null
+}
+
+/**
+ * Deduplica caminhos por path_type.
+ * Para o mesmo path_type, o registro específico (dream_subtype bate com o sonho)
+ * vence o genérico (dream_subtype null).
+ */
+export function resolvePaths(
+  paths: DreamPathSetting[],
+  dreamSubtype: string | null,
+): DreamPathSetting[] {
+  const map = new Map<PathType, DreamPathSetting>()
+  for (const path of paths) {
+    const existing = map.get(path.path_type)
+    if (!existing) {
+      map.set(path.path_type, path)
+    } else {
+      const incomingIsSpecific = path.dream_subtype !== null && path.dream_subtype === dreamSubtype
+      const existingIsGeneric  = existing.dream_subtype === null
+      if (incomingIsSpecific && existingIsGeneric) {
+        map.set(path.path_type, path)
+      }
+    }
+  }
+  return [...map.values()].sort((a, b) => a.sort_order - b.sort_order)
+}
+
+/** Taxa anual → taxa mensal equivalente: (1 + r_a)^(1/12) − 1 */
+export function annualToMonthlyRate(annual: number): number {
+  return Math.pow(1 + annual, 1 / 12) - 1
+}
+
+/** Valor futuro de aportes mensais com juros compostos */
+export function futureValue(monthly: number, months: number, rate: number): number {
+  if (monthly <= 0) return 0
+  if (rate === 0)   return monthly * months
+  return monthly * ((Math.pow(1 + rate, months) - 1) / rate)
+}
+
+/** Parcela de financiamento — fórmula PMT */
+export function calcInstallment(principal: number, monthlyRate: number, months: number): number {
+  if (monthlyRate === 0) return principal / months
+  const factor = Math.pow(1 + monthlyRate, months)
+  return principal * monthlyRate * factor / (factor - 1)
+}
+
+/** Avalia se uma parcela cabe na sobra mensal do lead */
+export function evalInstallmentStatus(
+  installment: number | null,
+  sobra: number,
+): InstallmentStatus | null {
+  if (installment === null) return null
+  if (sobra <= 0)           return 'reorganizar'
+  const ratio = installment / sobra
+  if (ratio <= 0.30) return 'confortavel'
+  if (ratio <= 0.50) return 'possivel'
+  return 'nao_cabe'
+}

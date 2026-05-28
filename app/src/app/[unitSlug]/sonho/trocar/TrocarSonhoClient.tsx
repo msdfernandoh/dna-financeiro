@@ -362,10 +362,9 @@ export function TrocarSonhoClient({ unitSlug, allDreams, setPrimaryAction, creat
                 Valor-alvo (R$) *
               </label>
               <input
-                type="number"
+                type="text"
+                inputMode="decimal"
                 name="target_amount"
-                min={1}
-                step={1}
                 required
                 style={{
                   width: '100%', boxSizing: 'border-box',
@@ -375,7 +374,7 @@ export function TrocarSonhoClient({ unitSlug, allDreams, setPrimaryAction, creat
                   fontSize: 16, fontWeight: 600, color: C.text,
                   background: '#fff', outline: 'none', fontFamily: 'inherit',
                 }}
-                placeholder="Ex: 50000"
+                placeholder="Ex: 500.000 ou 750000"
               />
               {createState?.success === false && createState.field === 'target_amount' && (
                 <p style={{ margin: '4px 0 0', fontSize: 11, color: C.coralDark }}>{createState.error}</p>
