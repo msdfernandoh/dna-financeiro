@@ -201,7 +201,7 @@ export async function GET() {
     return NextResponse.json({ error: 'Erro ao buscar leads.' }, { status: 500 })
   }
 
-  const leads = (rawLeads ?? []) as EventLeadRow[]
+  const leads = (rawLeads ?? []) as unknown as EventLeadRow[]
 
   // ── Colunas do Excel ──────────────────────────────────────────────────────
   const HEADERS = [
