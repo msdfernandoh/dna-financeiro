@@ -16,6 +16,7 @@ const NAV_ITEMS = [
   { href: '/admin/unidades',                          label: 'Unidades',      emoji: '🏢', available: true,  exact: false, masterOnly: true  },
   { href: '/admin/usuarios',                          label: 'Usuários',      emoji: '👤', available: true,  exact: false, masterOnly: true  },
   { href: '/admin/configuracoes/caminhos-sonho',      label: 'Caminhos',      emoji: '⚙️', available: true,  exact: false, masterOnly: true  },
+  { href: '/admin/eventos',                           label: 'Eventos',       emoji: '📅', available: true,  exact: false, masterOnly: true  },
   { href: '/admin/campanhas',     label: 'Campanhas',     emoji: '📣', available: false, exact: false, masterOnly: false },
   { href: '/admin/perguntas',     label: 'Perguntas',     emoji: '❓', available: false, exact: false, masterOnly: false },
   { href: '/admin/relatorios',    label: 'Relatórios',    emoji: '📋', available: false, exact: false, masterOnly: false },

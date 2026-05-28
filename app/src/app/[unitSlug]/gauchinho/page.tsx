@@ -195,6 +195,17 @@ export default async function GauchinhoPage({ params }: Props) {
             }}>
               🎯 Simular meu sonho agora
             </a>
+            {/* ── CTA Evento Construtora ── */}
+            <a href={`/${unitSlug}/gauchinho/evento`} style={{
+              display: 'block', textAlign: 'center', textDecoration: 'none',
+              background: 'linear-gradient(135deg, #F4A300 0%, #D48500 100%)',
+              color: '#fff', borderRadius: 14, padding: '16px 20px',
+              fontSize: 16, fontWeight: 700,
+              boxShadow: '0 4px 24px rgba(244,163,0,.45), inset 0 1px 0 rgba(255,255,255,.18)',
+              letterSpacing: 0.2,
+            }}>
+              📋 Cadastrar para análise do evento
+            </a>
             <a href={WHATSAPP_URL} target="_blank" rel="noopener noreferrer" style={{
               display: 'block', textAlign: 'center', textDecoration: 'none',
               background: 'rgba(255,255,255,0.07)',
@@ -551,6 +562,69 @@ export default async function GauchinhoPage({ params }: Props) {
             </p>
           </div>
         </div>
+      </section>
+
+      {/* ════════════════════════════════════════════════════════════════════ */}
+      {/* 7B. EVENTO CONSTRUTORA — Banner de captação do evento                */}
+      {/* ════════════════════════════════════════════════════════════════════ */}
+      <section style={{ padding: '8px 20px 40px', maxWidth: 480, margin: '0 auto' }}>
+        <a
+          href={`/${unitSlug}/gauchinho/evento`}
+          style={{
+            display: 'block', textDecoration: 'none',
+            background: 'linear-gradient(135deg, #1B4F8A 0%, #0F3060 100%)',
+            borderRadius: 20, padding: '24px 22px',
+            position: 'relative', overflow: 'hidden',
+            boxShadow: '0 6px 28px rgba(27,79,138,.35)',
+          }}
+        >
+          {/* Orb dourado */}
+          <div style={{
+            position: 'absolute', top: -40, right: -40, width: 160, height: 160,
+            background: 'radial-gradient(circle, rgba(244,163,0,.25) 0%, transparent 70%)',
+            pointerEvents: 'none',
+          }} />
+          <div style={{ position: 'relative', zIndex: 1 }}>
+            {/* Badge */}
+            <div style={{ marginBottom: 12 }}>
+              <span style={{
+                background: 'rgba(244,163,0,0.2)',
+                border: '1px solid rgba(244,163,0,0.5)',
+                color: '#F4A300',
+                fontSize: 10, fontWeight: 700,
+                padding: '4px 10px', borderRadius: 99,
+                letterSpacing: 0.5, textTransform: 'uppercase',
+              }}>
+                🏗️ Evento exclusivo · Análise gratuita
+              </span>
+            </div>
+            <h3 style={{
+              fontSize: 18, fontWeight: 700, color: '#fff',
+              margin: '0 0 8px', lineHeight: 1.3,
+            }}>
+              Tem apartamento no evento?
+              <br />
+              <span style={{ color: '#F4A300' }}>Cadastre e receba sua análise.</span>
+            </h3>
+            <p style={{
+              fontSize: 13, color: 'rgba(255,255,255,0.65)',
+              lineHeight: 1.6, margin: '0 0 18px',
+            }}>
+              Nossa equipe analisa o melhor caminho para você realizar a compra:
+              financiamento, consórcio, Plano Pontual ou carta contemplada.
+            </p>
+            <div style={{
+              display: 'inline-flex', alignItems: 'center', gap: 8,
+              background: '#F4A300',
+              color: '#fff', borderRadius: 12,
+              padding: '13px 22px',
+              fontSize: 14, fontWeight: 700,
+              boxShadow: '0 4px 16px rgba(244,163,0,.4)',
+            }}>
+              📋 Cadastrar para análise do evento →
+            </div>
+          </div>
+        </a>
       </section>
 
       {/* ════════════════════════════════════════════════════════════════════ */}

@@ -244,6 +244,48 @@ export interface FormErrors {
 // State do Server Action saveBusinessProfile — redirect on success, error on fail
 export type SaveBusinessProfileState = { error: string } | null
 
+// ---------------------------------------------------------------------------
+// Evento: event_leads — leads de eventos de parceiros (ex: Gauchinho x Construtora)
+// SEPARADO da tabela leads do DNA Financeiro — nunca misturar.
+// LGPD: consent_share_builder = true é pré-requisito para exportação à construtora.
+// ---------------------------------------------------------------------------
+
+export interface EventLead {
+  id:                          string
+  unit_id:                     string
+  event_key:                   string            // ex: 'gauchinho_construtora'
+  name:                        string
+  whatsapp:                    string
+  cpf:                         string | null      // ⚠️ LGPD, opcional
+  empreendimento:              string | null
+  torre:                       string | null
+  apartamento:                 string | null
+  valor_imovel:                number | null
+  valor_entrega:               number | null
+  valor_entrada_disponivel:    number | null
+  renda_aproximada:            number | null
+  precisa_financiamento:       boolean
+  interesse_consorcio:         boolean
+  interesse_carta_contemplada: boolean
+  interesse_credito:           boolean
+  interesse_plano_pontual:     boolean
+  melhor_horario_contato:      string | null
+  observacoes:                 string | null
+  consent_share_builder:       boolean            // ⚠️ LGPD — exportação à construtora
+  consent_contact:             boolean
+  source_page:                 string | null
+  ip_address:                  string | null
+  user_agent:                  string | null
+  created_at:                  string
+  updated_at:                  string
+  deleted_at:                  string | null
+}
+
+// Estado do Server Action de criação de event_lead
+export type CreateEventLeadResult =
+  | { success: true }
+  | { success: false; error: string; field?: string }
+
 export interface BusinessProfile {
   id: string
   unit_id: string
