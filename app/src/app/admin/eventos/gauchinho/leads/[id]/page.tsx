@@ -12,6 +12,8 @@ import { requireAdmin }              from '@/lib/supabase/admin'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { AdminShell }                from '@/app/admin/_AdminShell'
 import { C }                         from '@/app/components/ui'
+import { SituacaoSelect }            from '../_SituacaoSelect'
+import { AnexosSection }             from './_AnexosSection'
 
 export const metadata = { title: 'Lead · Evento Construtora · Admin DNA Financeiro' }
 
@@ -142,6 +144,7 @@ export default async function AdminLeadDetailPage({ params }: Props) {
                 🏗️ Autorizado para construtora
               </span>
             )}
+            <SituacaoSelect leadId={lead.id} initial={(lead as Record<string, unknown>).situacao as string ?? 'enviar_proposta'} />
           </div>
         </div>
       </div>
@@ -190,6 +193,9 @@ export default async function AdminLeadDetailPage({ params }: Props) {
         <Row label="Consentimento de contato"             value={<YesNo v={lead.consent_contact} />} />
         <Row label="Autorizado para construtora"          value={<YesNo v={lead.consent_share_builder} />} />
       </Section>
+
+      {/* ── Anexos ── */}
+      <AnexosSection leadId={lead.id} />
 
       {/* ── Rastreamento ── */}
       <Section title="📊 Rastreamento">

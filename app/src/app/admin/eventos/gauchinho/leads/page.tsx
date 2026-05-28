@@ -13,6 +13,7 @@ import { requireAdmin }              from '@/lib/supabase/admin'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { AdminShell }                from '@/app/admin/_AdminShell'
 import { C }                         from '@/app/components/ui'
+import { SituacaoSelect }            from './_SituacaoSelect'
 
 export const metadata = { title: 'Leads Evento Construtora · Admin DNA Financeiro' }
 
@@ -38,6 +39,7 @@ type EventLeadRow = {
   melhor_horario_contato:      string | null
   consent_share_builder:       boolean
   consent_contact:             boolean
+  situacao:                    string
   created_at:                  string
   unit_id:                     string
 }
@@ -113,7 +115,7 @@ export default async function AdminGauchinhoLeadsPage({ searchParams }: Props) {
       'precisa_financiamento', 'interesse_consorcio', 'interesse_carta_contemplada',
       'interesse_credito', 'interesse_plano_pontual',
       'melhor_horario_contato', 'consent_share_builder', 'consent_contact',
-      'created_at', 'unit_id',
+      'situacao', 'created_at', 'unit_id',
     ].join(', '))
     .eq('event_key', 'gauchinho_construtora')
     .is('deleted_at', null)
@@ -417,6 +419,11 @@ export default async function AdminGauchinhoLeadsPage({ searchParams }: Props) {
                     </div>
                   )}
 
+                  {/* Situação */}
+                  <div style={{ marginBottom: 8 }}>
+                    <SituacaoSelect leadId={lead.id} initial={lead.situacao} />
+                  </div>
+
                   {/* Linha de rodapé */}
                   <div style={{
                     display: 'flex', alignItems: 'center',
@@ -432,7 +439,7 @@ export default async function AdminGauchinhoLeadsPage({ searchParams }: Props) {
                       textDecoration: 'none', color: C.textSec, background: '#fff',
                       fontWeight: 500, whiteSpace: 'nowrap',
                     }}>
-                      Ver detalhes →
+                      📎 Ver detalhes →
                     </a>
                   </div>
                 </div>
