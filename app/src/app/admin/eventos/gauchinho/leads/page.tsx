@@ -39,7 +39,7 @@ type EventLeadRow = {
   melhor_horario_contato:      string | null
   consent_share_builder:       boolean
   consent_contact:             boolean
-  situacao:                    string
+  situacao:                    string | undefined
   created_at:                  string
   unit_id:                     string
 }
@@ -107,7 +107,7 @@ export default async function AdminGauchinhoLeadsPage({ searchParams }: Props) {
   const consentF  = sp.consent  ?? ''
 
   // ── Query DB ──────────────────────────────────────────────────────────────
-  const { data: allRaw } = await supabase
+  const { data: allRaw, error: queryError } = await supabase
     .from('event_leads')
     .select([
       'id', 'name', 'whatsapp', 'city', 'empreendimento', 'torre', 'apartamento',
@@ -115,12 +115,14 @@ export default async function AdminGauchinhoLeadsPage({ searchParams }: Props) {
       'precisa_financiamento', 'interesse_consorcio', 'interesse_carta_contemplada',
       'interesse_credito', 'interesse_plano_pontual',
       'melhor_horario_contato', 'consent_share_builder', 'consent_contact',
-      'situacao', 'created_at', 'unit_id',
+      'created_at', 'unit_id',
     ].join(', '))
     .eq('event_key', 'gauchinho_construtora')
     .is('deleted_at', null)
     .order('created_at', { ascending: false })
     .limit(1000)
+
+  if (queryError) console.error('[admin leads query]', queryError)
 
   const allLeads = (allRaw ?? []) as unknown as EventLeadRow[]
 
@@ -421,7 +423,7 @@ export default async function AdminGauchinhoLeadsPage({ searchParams }: Props) {
 
                   {/* Situação */}
                   <div style={{ marginBottom: 8 }}>
-                    <SituacaoSelect leadId={lead.id} initial={lead.situacao} />
+                    <SituacaoSelect leadId={lead.id} initial={lead.situacao ?? 'enviar_proposta'} />
                   </div>
 
                   {/* Linha de rodapé */}
