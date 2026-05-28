@@ -82,6 +82,7 @@ export async function POST(req: Request, { params }: RouteContext) {
     event_name:                  'Evento Construtora - Gauchinho',
     source_page:                 `/${unitSlug}/gauchinho/evento`,
     name,
+    cpf:                         str('cpf'),
     whatsapp,
     city:                        str('city'),
     empreendimento:              str('empreendimento'),

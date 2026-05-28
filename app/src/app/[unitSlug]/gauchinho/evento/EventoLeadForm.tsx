@@ -22,6 +22,7 @@ type Status = 'idle' | 'loading' | 'success' | 'error'
 
 const INIT = {
   name:                        '',
+  cpf:                         '',
   whatsapp:                    '',
   city:                        '',
   empreendimento:              '',
@@ -41,6 +42,40 @@ const INIT = {
   interesse_nao_sei:           false,
   consent_contact:             false,
   consent_share_builder:       false,
+}
+
+// ── Máscaras ──────────────────────────────────────────────────────────────────
+
+function maskPhone(v: string): string {
+  const d = v.replace(/\D/g, '').slice(0, 11)
+  if (d.length === 0) return ''
+  if (d.length <= 2)  return `(${d}`
+  if (d.length <= 7)  return `(${d.slice(0, 2)}) ${d.slice(2)}`
+  if (d.length <= 10) return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`
+  return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`
+}
+
+function maskCPF(v: string): string {
+  const d = v.replace(/\D/g, '').slice(0, 11)
+  if (d.length <= 3)  return d
+  if (d.length <= 6)  return `${d.slice(0, 3)}.${d.slice(3)}`
+  if (d.length <= 9)  return `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6)}`
+  return `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6, 9)}-${d.slice(9)}`
+}
+
+function maskCurrency(v: string): string {
+  const digits = v.replace(/\D/g, '')
+  if (!digits) return ''
+  const num = parseInt(digits, 10)
+  return (num / 100).toLocaleString('pt-BR', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })
+}
+
+function parseCurrency(v: string): number {
+  if (!v) return 0
+  return parseFloat(v.replace(/\./g, '').replace(',', '.')) || 0
 }
 
 // ── Helpers de estilo ─────────────────────────────────────────────────────────
@@ -131,15 +166,16 @@ export default function EventoLeadForm({ unitSlug, whatsappUrl }: Props) {
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify({
           name:                        form.name.trim(),
+          cpf:                         form.cpf.trim() || undefined,
           whatsapp:                    form.whatsapp.trim(),
           city:                        form.city.trim() || undefined,
           empreendimento:              form.empreendimento.trim() || undefined,
           torre:                       form.torre.trim() || undefined,
           apartamento:                 form.apartamento.trim() || undefined,
-          valor_imovel:                form.valor_imovel ? Number(form.valor_imovel.replace(/\D/g, '')) : undefined,
-          valor_entrega:               form.valor_entrega ? Number(form.valor_entrega.replace(/\D/g, '')) : undefined,
-          valor_entrada_disponivel:    form.valor_entrada_disponivel ? Number(form.valor_entrada_disponivel.replace(/\D/g, '')) : undefined,
-          renda_aproximada:            form.renda_aproximada ? Number(form.renda_aproximada.replace(/\D/g, '')) : undefined,
+          valor_imovel:                form.valor_imovel ? parseCurrency(form.valor_imovel) : undefined,
+          valor_entrega:               form.valor_entrega ? parseCurrency(form.valor_entrega) : undefined,
+          valor_entrada_disponivel:    form.valor_entrada_disponivel ? parseCurrency(form.valor_entrada_disponivel) : undefined,
+          renda_aproximada:            form.renda_aproximada ? parseCurrency(form.renda_aproximada) : undefined,
           melhor_horario_contato:      form.melhor_horario_contato || undefined,
           observacoes:                 form.observacoes.trim() || undefined,
           precisa_financiamento:       form.precisa_financiamento,
@@ -252,18 +288,32 @@ export default function EventoLeadForm({ unitSlug, whatsappUrl }: Props) {
         />
       </div>
 
-      <div style={fieldWrap}>
-        <label style={labelStyle}>WhatsApp *</label>
-        <input
-          style={inputStyle}
-          type="tel"
-          placeholder="(66) 99999-9999"
-          value={form.whatsapp}
-          onChange={(e: { target: { value: string } }) => setField('whatsapp', e.target.value)}
-          required
-          autoComplete="tel"
-          inputMode="tel"
-        />
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 14 }}>
+        <div>
+          <label style={labelStyle}>WhatsApp *</label>
+          <input
+            style={inputStyle}
+            type="tel"
+            placeholder="(66) 99999-9999"
+            value={form.whatsapp}
+            onChange={(e: { target: { value: string } }) => setField('whatsapp', maskPhone(e.target.value))}
+            required
+            autoComplete="tel"
+            inputMode="tel"
+          />
+        </div>
+        <div>
+          <label style={labelStyle}>CPF <Opt /></label>
+          <input
+            style={inputStyle}
+            type="text"
+            placeholder="000.000.000-00"
+            value={form.cpf}
+            onChange={(e: { target: { value: string } }) => setField('cpf', maskCPF(e.target.value))}
+            inputMode="numeric"
+            autoComplete="off"
+          />
+        </div>
       </div>
 
       <div style={fieldWrap}>
@@ -331,7 +381,7 @@ export default function EventoLeadForm({ unitSlug, whatsappUrl }: Props) {
             inputMode="numeric"
             placeholder="0"
             value={form.valor_imovel}
-            onChange={(e: { target: { value: string } }) => setField('valor_imovel', e.target.value.replace(/[^0-9]/g, ''))}
+            onChange={(e: { target: { value: string } }) => setField('valor_imovel', maskCurrency(e.target.value))}
           />
         </div>
       </div>
@@ -349,7 +399,7 @@ export default function EventoLeadForm({ unitSlug, whatsappUrl }: Props) {
             inputMode="numeric"
             placeholder="0"
             value={form.valor_entrega}
-            onChange={(e: { target: { value: string } }) => setField('valor_entrega', e.target.value.replace(/[^0-9]/g, ''))}
+            onChange={(e: { target: { value: string } }) => setField('valor_entrega', maskCurrency(e.target.value))}
           />
         </div>
       </div>
@@ -367,7 +417,7 @@ export default function EventoLeadForm({ unitSlug, whatsappUrl }: Props) {
             inputMode="numeric"
             placeholder="0"
             value={form.valor_entrada_disponivel}
-            onChange={(e: { target: { value: string } }) => setField('valor_entrada_disponivel', e.target.value.replace(/[^0-9]/g, ''))}
+            onChange={(e: { target: { value: string } }) => setField('valor_entrada_disponivel', maskCurrency(e.target.value))}
           />
         </div>
       </div>
@@ -385,7 +435,7 @@ export default function EventoLeadForm({ unitSlug, whatsappUrl }: Props) {
             inputMode="numeric"
             placeholder="0"
             value={form.renda_aproximada}
-            onChange={(e: { target: { value: string } }) => setField('renda_aproximada', e.target.value.replace(/[^0-9]/g, ''))}
+            onChange={(e: { target: { value: string } }) => setField('renda_aproximada', maskCurrency(e.target.value))}
           />
         </div>
       </div>

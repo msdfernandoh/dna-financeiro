@@ -207,6 +207,7 @@ export async function GET() {
   const HEADERS = [
     'Data cadastro',
     'Nome',
+    'CPF',
     'WhatsApp',
     'Cidade',
     'Empreendimento',
@@ -229,6 +230,7 @@ export async function GET() {
   const rows = leads.map(l => [
     fmtDate(l.created_at),
     l.name,
+    (l as Record<string, unknown>).cpf as string ?? '',
     l.whatsapp,
     l.city           ?? '',
     l.empreendimento ?? '',

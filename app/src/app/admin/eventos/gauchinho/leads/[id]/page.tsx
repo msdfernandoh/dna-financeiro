@@ -146,6 +146,13 @@ export default async function AdminLeadDetailPage({ params }: Props) {
         </div>
       </div>
 
+      {/* ── Contato ── */}
+      <Section title="📞 Contato">
+        <Row label="WhatsApp" value={fmtPhone(lead.whatsapp)} />
+        <Row label="CPF"      value={lead.cpf ?? '—'} />
+        <Row label="Cidade"   value={lead.city} />
+      </Section>
+
       {/* ── Dados do imóvel ── */}
       <Section title="🏠 Imóvel">
         <Row label="Empreendimento" value={lead.empreendimento} />
