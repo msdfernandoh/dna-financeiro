@@ -12,7 +12,9 @@ import { requireAdmin }               from '@/lib/supabase/admin'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { AdminShell }                 from '@/app/admin/_AdminShell'
 import { togglePathActive, deletePath } from './actions'
+import { ConfirmSubmitButton }        from './_ConfirmSubmitButton'
 import { C }                          from '@/app/components/ui'
+import type { CSSProperties }         from 'react'
 
 // ── Tipos ─────────────────────────────────────────────────────────────────────
 
@@ -71,6 +73,43 @@ function fmtDate(iso: string | null): string {
   return new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit' })
 }
 
+const PATH_LIST_SELECT =
+  'id, unit_id, path_type, dream_type, dream_subtype, label, description, active, sort_order, default_amount, full_installment_amount, term_months, created_at, updated_at'
+
+const PATH_LIST_SELECT_LEGACY =
+  'id, path_type, dream_type, dream_subtype, label, description, active, sort_order, default_amount, full_installment_amount, term_months, created_at, updated_at'
+
+async function loadDreamPathRows(
+  supabase: ReturnType<typeof createServerSupabaseClient>,
+): Promise<{ rows: PathRow[]; error: string | null }> {
+  const res = await supabase
+    .from('dream_path_settings')
+    .select(PATH_LIST_SELECT)
+    .is('deleted_at', null)
+    .order('sort_order', { ascending: true })
+    .order('path_type', { ascending: true })
+
+  if (!res.error) {
+    return { rows: (res.data ?? []) as PathRow[], error: null }
+  }
+
+  if (/unit_id/i.test(res.error.message ?? '')) {
+    const legacy = await supabase
+      .from('dream_path_settings')
+      .select(PATH_LIST_SELECT_LEGACY)
+      .is('deleted_at', null)
+      .order('sort_order', { ascending: true })
+      .order('path_type', { ascending: true })
+    if (legacy.error) {
+      return { rows: [], error: legacy.error.message }
+    }
+    const rows = (legacy.data ?? []).map(r => ({ ...r, unit_id: null })) as PathRow[]
+    return { rows, error: null }
+  }
+
+  return { rows: [], error: res.error.message }
+}
+
 // ── Página ────────────────────────────────────────────────────────────────────
 
 interface Props {
@@ -103,13 +142,8 @@ export default async function CaminhosSonhoPage({ searchParams }: Props) {
 
   const supabase = createServerSupabaseClient()
 
-  const [{ data: rawPaths }, { data: rawUnits }] = await Promise.all([
-    supabase
-      .from('dream_path_settings')
-      .select('id, unit_id, path_type, dream_type, dream_subtype, label, description, active, sort_order, default_amount, full_installment_amount, term_months, created_at, updated_at')
-      .is('deleted_at', null)
-      .order('sort_order', { ascending: true })
-      .order('path_type', { ascending: true }),
+  const [{ rows: paths, error: pathsLoadError }, { data: rawUnits }] = await Promise.all([
+    loadDreamPathRows(supabase),
     supabase
       .from('units')
       .select('id, name, slug')
@@ -118,7 +152,6 @@ export default async function CaminhosSonhoPage({ searchParams }: Props) {
       .order('name'),
   ])
 
-  const paths: PathRow[] = rawPaths ?? []
   const unitById = new Map(
     (rawUnits ?? []).map(u => [u.id, { name: u.name, slug: u.slug }]),
   )
@@ -156,14 +189,14 @@ export default async function CaminhosSonhoPage({ searchParams }: Props) {
 
   // ── Estilos ───────────────────────────────────────────────────────────────
 
-  const filterInputStyle: React.CSSProperties = {
+  const filterInputStyle: CSSProperties = {
     border: `1px solid ${C.border}`, borderRadius: 8,
     padding: '6px 10px', fontSize: 12, background: '#fff',
     color: C.text, fontFamily: 'inherit', outline: 'none',
     minWidth: 0,
   }
 
-  const selectStyle: React.CSSProperties = {
+  const selectStyle: CSSProperties = {
     ...filterInputStyle, cursor: 'pointer', appearance: 'none' as const,
     backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 12 12'%3E%3Cpath fill='%23888' d='M6 8L1 3h10z'/%3E%3C/svg%3E")`,
     backgroundRepeat: 'no-repeat', backgroundPosition: 'right 8px center',
@@ -172,6 +205,15 @@ export default async function CaminhosSonhoPage({ searchParams }: Props) {
 
   return (
     <AdminShell session={session} title="Caminhos do Sonho">
+
+      {pathsLoadError && (
+        <div style={{
+          background: '#FEF2F2', border: '1px solid #FCA5A5', borderRadius: 8,
+          padding: '10px 14px', marginBottom: 12, fontSize: 13, color: '#991B1B',
+        }}>
+          Erro ao carregar caminhos: {pathsLoadError}
+        </div>
+      )}
 
       {/* Toast */}
       {toast && (
@@ -383,13 +425,8 @@ export default async function CaminhosSonhoPage({ searchParams }: Props) {
                   </form>
 
                   <form action={deletePath.bind(null, p.id)} style={{ display: 'inline' }}>
-                    <button
-                      type="submit"
-                      onClick={(e) => {
-                        if (!confirm(`Remover "${p.label}"? Esta ação não pode ser desfeita.`)) {
-                          e.preventDefault()
-                        }
-                      }}
+                    <ConfirmSubmitButton
+                      confirmMessage={`Remover "${p.label}"? Esta ação não pode ser desfeita.`}
                       style={{
                         padding: '4px 12px', borderRadius: 6, fontSize: 11, fontWeight: 500,
                         background: '#FEF2F2', color: '#DC2626',
@@ -397,7 +434,7 @@ export default async function CaminhosSonhoPage({ searchParams }: Props) {
                       }}
                     >
                       🗑 Remover
-                    </button>
+                    </ConfirmSubmitButton>
                   </form>
                 </div>
               </div>
