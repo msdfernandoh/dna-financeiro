@@ -18,7 +18,7 @@ import { LeadBottomNav } from '@/app/components/LeadBottomNav'
 import {
   calculateDreamPlan, fmtBRLPlan, formatDreamSubtype,
   GOAL_STATUS_META, INSTALLMENT_STATUS_META,
-  resolvePaths, futureValue, annualToMonthlyRate, evalInstallmentStatus, calcInstallment,
+  resolveDreamPathsForLead, futureValue, annualToMonthlyRate, evalInstallmentStatus, calcInstallment,
   type PlanSettings, type GoalStatus, type InstallmentStatus,
   type DreamPathSetting,
 } from '@/lib/dreamPlan'
@@ -56,6 +56,34 @@ function fmtBRL(v: number) {
 function compoundFV(monthlySaving: number, months: number, rate = 0.01): number {
   if (monthlySaving <= 0) return 0
   return monthlySaving * ((Math.pow(1 + rate, months) - 1) / rate)
+}
+
+const HORIZON_LABELS: Record<number, string> = {
+  12: '1 ano', 24: '2 anos', 36: '3 anos', 60: '5 anos', 84: '7 anos', 120: '10 anos',
+}
+
+/** Horizontes para poupança/investimento — imóvel sem 120m; inclui prazo do plano (ex.: 220). */
+function buildPathHorizonMonths(
+  planTermMonths: number | null,
+  pathTermMonths: number | null,
+  isRealEstate: boolean,
+): number[] {
+  const base = isRealEstate ? [12, 36, 60, 84] : [12, 36, 60, 84, 120]
+  const merged = new Set(base)
+  for (const m of [planTermMonths, pathTermMonths]) {
+    if (m != null && m > 0) merged.add(m)
+  }
+  return [...merged].sort((a, b) => a - b)
+}
+
+function horizonLabel(months: number, planTermMonths: number | null): string {
+  if (planTermMonths != null && months === planTermMonths && !HORIZON_LABELS[months]) {
+    const yrs = months / 12
+    return Number.isInteger(yrs)
+      ? `${yrs} anos (plano)`
+      : `${months} meses (plano)`
+  }
+  return HORIZON_LABELS[months] ?? `${months} meses`
 }
 
 // ── Props ─────────────────────────────────────────────────────────────────────
@@ -160,6 +188,7 @@ export default async function SonhoPage({ params, searchParams }: Props) {
       const { data: pathRows } = await supabase
         .from('dream_path_settings')
         .select(`
+          unit_id,
           path_type, dream_subtype, label, description,
           sort_order, show_capital_gain, show_total_cost,
           default_amount,
@@ -176,11 +205,14 @@ export default async function SonhoPage({ params, searchParams }: Props) {
         .eq('dream_type', primaryDream.dream_type)
         .eq('active', true)
         .is('deleted_at', null)
+        .or(`unit_id.is.null,unit_id.eq.${lead!.unit_id}`)
         .order('sort_order')
       rawPaths = (pathRows ?? []) as DreamPathSetting[]
     } catch { /* graceful — fallback para cards hardcoded */ }
   }
-  const resolvedPaths    = resolvePaths(rawPaths, primaryDream?.dream_subtype ?? null)
+  const resolvedPaths    = primaryDream
+    ? resolveDreamPathsForLead(rawPaths, lead!.unit_id, primaryDream.dream_subtype ?? null)
+    : []
   const hasDynamicPaths  = resolvedPaths.length > 0
   const showComparisonBlock = hasDynamicPaths &&
     resolvedPaths.some(p => p.path_type === 'investment') &&
@@ -189,6 +221,14 @@ export default async function SonhoPage({ params, searchParams }: Props) {
       p.path_type === 'consortium_traditional'
     )
 
+  const isRealEstate = primaryDream
+    ? REAL_ESTATE_TYPES.has(primaryDream.dream_type)
+    : false
+
+  // dream_path_settings vence dream_plan_settings; imóvel não usa plano legado (120m genérico)
+  const effectivePlanSettings: PlanSettings | null =
+    (hasDynamicPaths || isRealEstate) ? null : planSettings
+
   // ── Cálculos ──────────────────────────────────────────────────────────────
 
   const income   = lead!.monthly_income   ?? 0
@@ -196,13 +236,13 @@ export default async function SonhoPage({ params, searchParams }: Props) {
   const sobra    = income - expenses
 
   const dreamInfo      = primaryDream ? (DREAMS[primaryDream.dream_type] ?? DREAMS.outro) : null
-  const plan           = primaryDream ? calculateDreamPlan(primaryDream.target_amount, sobra, planSettings) : null
+  const plan           = primaryDream
+    ? calculateDreamPlan(primaryDream.target_amount, sobra, effectivePlanSettings)
+    : null
   const isConsorcio    = primaryDream ? CONSORCIAVEL.has(primaryDream.dream_type) : false
   const isPlanoPontual = primaryDream ? ['carro', 'caminhao'].includes(primaryDream.dream_type) : false
-  const isRealEstate   = primaryDream ? REAL_ESTATE_TYPES.has(primaryDream.dream_type) : false
 
-  // PARTE D — prazo do plano para horizonte de comparação nos cards fallback
-  // Prioridade: consórcio > financiamento > qualquer path com term_months > planSettings
+  // Prazo de referência: paths (consórcio primeiro) — nunca dream_plan_settings para imóvel
   const planTermMonths: number | null = (() => {
     if (hasDynamicPaths) {
       const consTerm = resolvedPaths.find(p =>
@@ -213,6 +253,7 @@ export default async function SonhoPage({ params, searchParams }: Props) {
       if (consTerm) return consTerm
       return resolvedPaths.find(p => p.term_months !== null)?.term_months ?? null
     }
+    if (isRealEstate) return null
     return planSettings?.term_months ?? null
   })()
 
@@ -505,8 +546,8 @@ export default async function SonhoPage({ params, searchParams }: Props) {
                 </div>
               )}
 
-              {/* Parcela sugerida — só com plano real configurado (dream_path_settings) */}
-              {hasDynamicPaths && plan.hasPlanSettings &&
+              {/* Parcela sugerida no topo — só dream_plan_settings (não imóvel; paths têm cards próprios) */}
+              {hasDynamicPaths && !isRealEstate && plan.hasPlanSettings &&
                (plan.reducedInstallment !== null || plan.fullInstallment !== null) && (
                 <div style={{
                   background: C.greenBg, borderRadius: 12,
@@ -563,6 +604,7 @@ export default async function SonhoPage({ params, searchParams }: Props) {
                       safeMonthly,
                       bestMonths:     plan.bestMonths,
                       planTermMonths,
+                      isRealEstate,
                     })}
                   </Fragment>
                 ))}
@@ -1274,6 +1316,7 @@ type CardCtx = {
   safeMonthly:    number
   bestMonths:     number | null
   planTermMonths: number | null
+  isRealEstate:   boolean
 }
 
 function renderDynamicPathCard(path: DreamPathSetting, ctx: CardCtx): ReactNode {
@@ -1310,18 +1353,12 @@ function ComparisonBlock() {
 }
 
 function renderCashSavingCard(path: DreamPathSetting, ctx: CardCtx): ReactNode {
-  const { target, safeMonthly, sobra, planTermMonths } = ctx
-  const baseHorizons = [
-    { months: 12,  label: '1 ano'   },
-    { months: 36,  label: '3 anos'  },
-    { months: 60,  label: '5 anos'  },
-    { months: 84,  label: '7 anos'  },
-    { months: 120, label: '10 anos' },
-  ]
-  // Adicionar prazo do plano se > 120 meses (evitar duplicata)
-  const horizons = (planTermMonths && planTermMonths > 120)
-    ? [...baseHorizons, { months: planTermMonths, label: `${Math.round(planTermMonths / 12)} anos (plano)` }]
-    : baseHorizons
+  const { target, safeMonthly, sobra, planTermMonths, isRealEstate } = ctx
+  const horizons = buildPathHorizonMonths(
+    planTermMonths,
+    path.term_months ?? null,
+    isRealEstate,
+  ).map(months => ({ months, label: horizonLabel(months, planTermMonths) }))
   return (
     <PathCard
       emoji={PATH_ICONS.cash_saving}
@@ -1345,7 +1382,7 @@ function renderCashSavingCard(path: DreamPathSetting, ctx: CardCtx): ReactNode {
                 background: reached ? C.greenBg : meta.bg,
                 borderRadius: 10, padding: '10px 12px',
                 border: reached ? `0.5px solid ${C.greenDark}30` : 'none',
-                gridColumn: months === 120 ? '1 / -1' : undefined,
+                gridColumn: months === planTermMonths && months > 84 ? '1 / -1' : undefined,
               }}>
                 <p style={{ margin: '0 0 2px', fontSize: 10, color: reached ? C.greenDark : meta.color, fontWeight: 500 }}>
                   {label}
@@ -1370,16 +1407,18 @@ function renderCashSavingCard(path: DreamPathSetting, ctx: CardCtx): ReactNode {
 }
 
 function renderInvestmentCard(path: DreamPathSetting, ctx: CardCtx): ReactNode {
-  const { target, safeMonthly, sobra, planTermMonths } = ctx
+  const { target, safeMonthly, sobra, planTermMonths, isRealEstate } = ctx
   const annual     = path.annual_return_rate ?? 0.12
   const mRate      = annualToMonthlyRate(annual)
   const annualPct  = Math.round(annual * 100)
-  const termMonths = path.term_months ?? 48
-  // Incluir planTermMonths para comparação com prazo do consórcio/financiamento
-  const rawH   = planTermMonths
-    ? [12, 36, termMonths, planTermMonths]
-    : [12, 24, 36, termMonths]
-  const horizons = rawH.filter((v, i, a) => a.indexOf(v) === i).sort((a, b) => a - b).slice(0, 5)
+  const horizons = buildPathHorizonMonths(
+    planTermMonths,
+    path.term_months ?? null,
+    isRealEstate,
+  )
+  if (!isRealEstate && !horizons.includes(24)) {
+    horizons.splice(1, 0, 24)
+  }
 
   return (
     <PathCard
@@ -1395,8 +1434,7 @@ function renderInvestmentCard(path: DreamPathSetting, ctx: CardCtx): ReactNode {
               const fv      = futureValue(safeMonthly, months, mRate)
               const gain    = fv - totalInvested
               const reached = fv >= target
-              const yrs     = months / 12
-              const lbl     = Number.isInteger(yrs) ? `${yrs} ${yrs === 1 ? 'ano' : 'anos'}` : `${months}m`
+              const lbl     = horizonLabel(months, planTermMonths)
               return (
                 <div key={months} style={{
                   background: reached ? C.greenBg : C.purpleBg,

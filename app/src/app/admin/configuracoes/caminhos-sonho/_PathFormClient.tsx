@@ -25,8 +25,15 @@ import type { PathType } from '@/lib/dreamPlan'
 
 // ── Dados iniciais passados do Server Component ───────────────────────────────
 
+export type PathFormUnitOption = {
+  id:   string
+  name: string
+  slug: string
+}
+
 export type PathFormInitial = {
   id?:                    string
+  unit_id?:               string | null
   path_type?:             PathType | null
   dream_type?:            string | null
   dream_subtype?:         string | null
@@ -72,6 +79,7 @@ interface Props {
   action:  (prev: PathActionResult | null, formData: FormData) => Promise<PathActionResult>
   initial: PathFormInitial
   mode:    'create' | 'edit'
+  units:   PathFormUnitOption[]
 }
 
 // ── Helpers de exibição ───────────────────────────────────────────────────────
@@ -202,7 +210,7 @@ function Field({ label, hint, children }: { label: string; hint?: string; childr
 
 // ── Componente principal ──────────────────────────────────────────────────────
 
-export function PathFormClient({ action, initial, mode }: Props) {
+export function PathFormClient({ action, initial, mode, units }: Props) {
   const [state, formAction, isPending] = useActionState(action, null)
 
   const [pathType, setPathType]   = useState<PathType | ''>(initial.path_type ?? '')
@@ -248,6 +256,32 @@ export function PathFormClient({ action, initial, mode }: Props) {
       {/* 1. IDENTIFICAÇÃO */}
       {/* ═══════════════════════════════════════════════════════════════════ */}
       <Section title="1. Identificação">
+        <div style={{ marginBottom: 10 }}>
+          <Field
+            label="Unidade"
+            hint="Global vale para todas; unidade específica sobrescreve o global no /sonho"
+          >
+            <select
+              name="unit_id"
+              defaultValue={initial.unit_id ?? ''}
+              style={{
+                ...selectStyle,
+                borderColor: state?.field === 'unit_id' ? '#EF4444' : C.border,
+              }}
+            >
+              <option value="">Global (todas as unidades)</option>
+              {units.map(u => (
+                <option key={u.id} value={u.id}>
+                  {u.name} ({u.slug})
+                </option>
+              ))}
+            </select>
+            {state?.field === 'unit_id' && (
+              <p style={{ fontSize: 11, color: '#EF4444', marginTop: 3 }}>{state.error}</p>
+            )}
+          </Field>
+        </div>
+
         <div style={{ ...grid2, marginBottom: 10 }}>
           <Field label="Tipo de caminho *" hint="Define a lógica de cálculo">
             <select

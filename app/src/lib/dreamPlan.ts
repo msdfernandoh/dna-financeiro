@@ -169,6 +169,8 @@ export type PathType =
   | 'consortium_programmed_date'
 
 export interface DreamPathSetting {
+  /** NULL = configuração global; UUID = override da unidade */
+  unit_id: string | null
   path_type: PathType
   dream_subtype: string | null
   label: string
@@ -212,6 +214,40 @@ export interface DreamPathSetting {
   promo_reduced_installment_amount: number  | null
 }
 
+function pathSubtypeScopeKey(path: Pick<DreamPathSetting, 'path_type' | 'dream_subtype'>): string {
+  return `${path.path_type}\0${path.dream_subtype ?? ''}`
+}
+
+/**
+ * Para cada (path_type, dream_subtype), registro da unidade vence o global.
+ * Ignora rows de outras unidades.
+ */
+export function mergeUnitPathOverrides(
+  paths: DreamPathSetting[],
+  unitId: string,
+): DreamPathSetting[] {
+  const byKey = new Map<string, DreamPathSetting>()
+
+  for (const path of paths) {
+    if (path.unit_id != null && path.unit_id !== unitId) continue
+
+    const key = pathSubtypeScopeKey(path)
+    const existing = byKey.get(key)
+    if (!existing) {
+      byKey.set(key, path)
+      continue
+    }
+
+    const incomingIsUnit  = path.unit_id === unitId
+    const existingIsUnit  = existing.unit_id === unitId
+    if (incomingIsUnit && !existingIsUnit) {
+      byKey.set(key, path)
+    }
+  }
+
+  return [...byKey.values()]
+}
+
 /**
  * Deduplica caminhos por path_type.
  * Para o mesmo path_type, o registro específico (dream_subtype bate com o sonho)
@@ -235,6 +271,18 @@ export function resolvePaths(
     }
   }
   return [...map.values()].sort((a, b) => a.sort_order - b.sort_order)
+}
+
+/**
+ * Resolução completa para o lead: unidade > global, depois subtipo > genérico,
+ * um card por path_type.
+ */
+export function resolveDreamPathsForLead(
+  paths: DreamPathSetting[],
+  unitId: string,
+  dreamSubtype: string | null,
+): DreamPathSetting[] {
+  return resolvePaths(mergeUnitPathOverrides(paths, unitId), dreamSubtype)
 }
 
 /** Taxa anual → taxa mensal equivalente: (1 + r_a)^(1/12) − 1 */

@@ -4,8 +4,8 @@
 // SEGURANÇA:
 //   • requireAdmin() valida sessão
 //   • Apenas master pode acessar — outros roles recebem mensagem de permissão
-//   • dream_path_settings é tabela global (sem unit_id)
-//   • Filtros aplicados in-memory após fetch (dream_type, path_type, status)
+//   • unit_id NULL = global; preenchido = override por unidade
+//   • Filtros aplicados in-memory após fetch (unidade, dream_type, path_type, status)
 // =============================================================================
 
 import { requireAdmin }               from '@/lib/supabase/admin'
@@ -18,6 +18,7 @@ import { C }                          from '@/app/components/ui'
 
 type PathRow = {
   id:                     string
+  unit_id:                string | null
   path_type:              string
   dream_type:             string | null
   dream_subtype:          string | null
@@ -74,6 +75,7 @@ function fmtDate(iso: string | null): string {
 
 interface Props {
   searchParams: Promise<{
+    unit?:       string
     dream_type?: string
     path_type?:  string
     status?:     string
@@ -101,23 +103,37 @@ export default async function CaminhosSonhoPage({ searchParams }: Props) {
 
   const supabase = createServerSupabaseClient()
 
-  const { data: rawPaths } = await supabase
-    .from('dream_path_settings')
-    .select('id, path_type, dream_type, dream_subtype, label, description, active, sort_order, default_amount, full_installment_amount, term_months, created_at, updated_at')
-    .is('deleted_at', null)
-    .order('sort_order', { ascending: true })
-    .order('path_type', { ascending: true })
+  const [{ data: rawPaths }, { data: rawUnits }] = await Promise.all([
+    supabase
+      .from('dream_path_settings')
+      .select('id, unit_id, path_type, dream_type, dream_subtype, label, description, active, sort_order, default_amount, full_installment_amount, term_months, created_at, updated_at')
+      .is('deleted_at', null)
+      .order('sort_order', { ascending: true })
+      .order('path_type', { ascending: true }),
+    supabase
+      .from('units')
+      .select('id, name, slug')
+      .eq('active', true)
+      .is('deleted_at', null)
+      .order('name'),
+  ])
 
   const paths: PathRow[] = rawPaths ?? []
+  const unitById = new Map(
+    (rawUnits ?? []).map(u => [u.id, { name: u.name, slug: u.slug }]),
+  )
 
   // ── Filtros ───────────────────────────────────────────────────────────────
 
+  const filterUnit   = params.unit?.trim() || ''
   const filterDream  = params.dream_type?.trim() || ''
   const filterPath   = params.path_type?.trim()  || ''
   const filterStatus = params.status?.trim()      || ''
   const filterQ      = params.q?.trim().toLowerCase() || ''
 
   const filtered = paths.filter(p => {
+    if (filterUnit === 'global' && p.unit_id !== null) return false
+    if (filterUnit && filterUnit !== 'global' && p.unit_id !== filterUnit) return false
     if (filterDream  && p.dream_type !== filterDream)    return false
     if (filterPath   && p.path_type  !== filterPath)     return false
     if (filterStatus === 'active'   && !p.active)        return false
@@ -197,6 +213,14 @@ export default async function CaminhosSonhoPage({ searchParams }: Props) {
           style={{ ...filterInputStyle, flex: '1 1 160px' }}
         />
 
+        <select name="unit" defaultValue={filterUnit} style={{ ...selectStyle, flex: '0 0 160px' }}>
+          <option value="">Todas unidades</option>
+          <option value="global">Global</option>
+          {(rawUnits ?? []).map(u => (
+            <option key={u.id} value={u.id}>{u.name}</option>
+          ))}
+        </select>
+
         <select name="dream_type" defaultValue={filterDream} style={{ ...selectStyle, flex: '0 0 130px' }}>
           <option value="">Todos os sonhos</option>
           {Object.entries(DREAM_TYPE_LABELS).map(([v, l]) => (
@@ -255,6 +279,7 @@ export default async function CaminhosSonhoPage({ searchParams }: Props) {
           {filtered.map(p => {
             const pathLabel  = PATH_TYPE_LABELS[p.path_type] ?? p.path_type
             const dreamLabel = p.dream_type ? (DREAM_TYPE_LABELS[p.dream_type] ?? p.dream_type) : 'Genérico'
+            const unitMeta   = p.unit_id ? unitById.get(p.unit_id) : null
 
             return (
               <div key={p.id} style={{
@@ -272,6 +297,14 @@ export default async function CaminhosSonhoPage({ searchParams }: Props) {
                         background: C.purpleBg, color: C.purpleDeep, whiteSpace: 'nowrap',
                       }}>
                         {pathLabel}
+                      </span>
+                      <span style={{
+                        fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 99,
+                        background: p.unit_id ? C.amberBg : C.bgSecondary,
+                        color:      p.unit_id ? C.amberDark : C.textSec,
+                        whiteSpace: 'nowrap',
+                      }}>
+                        {unitMeta ? `${unitMeta.name} · ${unitMeta.slug}` : 'Global'}
                       </span>
                       <span style={{
                         fontSize: 10, padding: '2px 7px', borderRadius: 99,

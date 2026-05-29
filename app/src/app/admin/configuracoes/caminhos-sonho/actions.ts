@@ -7,7 +7,7 @@
 //   • requireAdmin() em toda ação — redireciona se não autenticado
 //   • Apenas master pode criar, editar ou deletar (role !== 'master' → erro)
 //   • unit_admin e unit_viewer são rejeitados
-//   • dream_path_settings é tabela global (sem unit_id)
+//   • unit_id NULL = global; preenchido = override por unidade
 //   • Soft delete: deleted_at = NOW() + active = false
 //   • Campos percent: usuário digita "40" → salva 0.40
 //   • Campos moeda: aceita "2.148,24" ou "2148.24" → salva number
@@ -47,6 +47,14 @@ const VALID_DREAM_TYPES = [
 
 // BLOCO 1 — admin_fee_base: usar valores corretos do banco
 const VALID_ADMIN_FEE_BASES = ['credit_value', 'invested_amount', 'financed_amount']
+
+const UNIQUE_PATH_SCOPE_MESSAGE =
+  'Já existe uma configuração para esta unidade, sonho, subtipo e caminho.'
+
+function isUniqueViolation(error: { code?: string; message?: string }): boolean {
+  return error.code === '23505' ||
+    (error.message?.includes('uidx_dream_path_unit_type_subtype_path') ?? false)
+}
 
 const VALID_CALCULATION_MODES = ['fixed', 'proportional', 'formula']
 
@@ -136,6 +144,9 @@ function parsePathFormData(formData: FormData) {
   const dream_type = dream_type_raw && VALID_DREAM_TYPES.includes(dream_type_raw)
     ? dream_type_raw : null
 
+  const unit_id_raw = formData.get('unit_id')?.toString().trim() ?? ''
+  const unit_id = unit_id_raw && /^[0-9a-f-]{36}$/.test(unit_id_raw) ? unit_id_raw : null
+
   // BLOCO 3 — Promoção
   const promo_active                     = formData.get('promo_active') === 'on'
   const promo_label                      = formData.get('promo_label')?.toString().trim() || null
@@ -147,6 +158,7 @@ function parsePathFormData(formData: FormData) {
 
   return {
     path_type, dream_type, dream_subtype, label, description, sort_order, active,
+    unit_id,
     show_capital_gain, show_total_cost,
     default_amount, full_installment_amount, reduced_installment_amount,
     term_months, group_size, draws_per_month,
@@ -184,6 +196,7 @@ export async function createPath(
   const supabase = createServerSupabaseClient()
 
   const { error } = await supabase.from('dream_path_settings').insert({
+    unit_id:                             parsed.unit_id,
     path_type:                           parsed.path_type,
     dream_type:                          parsed.dream_type,
     dream_subtype:                       parsed.dream_subtype,
@@ -223,6 +236,9 @@ export async function createPath(
 
   if (error) {
     console.error('[createPath]', error.message)
+    if (isUniqueViolation(error)) {
+      return { success: false, error: UNIQUE_PATH_SCOPE_MESSAGE, field: 'unit_id' }
+    }
     return { success: false, error: 'Erro ao salvar. Tente novamente.' }
   }
 
@@ -267,6 +283,7 @@ export async function updatePath(
   const { error } = await supabase
     .from('dream_path_settings')
     .update({
+      unit_id:                             parsed.unit_id,
       path_type:                           parsed.path_type,
       dream_type:                          parsed.dream_type,
       dream_subtype:                       parsed.dream_subtype,
@@ -308,6 +325,9 @@ export async function updatePath(
 
   if (error) {
     console.error('[updatePath]', error.message)
+    if (isUniqueViolation(error)) {
+      return { success: false, error: UNIQUE_PATH_SCOPE_MESSAGE, field: 'unit_id' }
+    }
     return { success: false, error: 'Erro ao salvar. Tente novamente.' }
   }
 

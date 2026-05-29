@@ -4,7 +4,7 @@
 // SEGURANÇA:
 //   • requireAdmin() valida sessão
 //   • Apenas master pode editar
-//   • dream_path_settings é tabela global (sem unit_id)
+//   • unit_id NULL = global; preenchido = override por unidade
 // =============================================================================
 
 import { notFound }                   from 'next/navigation'
@@ -41,14 +41,24 @@ export default async function EditarCaminhoPage({ params }: Props) {
 
   const supabase = createServerSupabaseClient()
 
-  const { data: path } = await supabase
-    .from('dream_path_settings')
-    .select('*')
-    .eq('id', id)
-    .is('deleted_at', null)
-    .single()
+  const [{ data: path }, { data: rawUnits }] = await Promise.all([
+    supabase
+      .from('dream_path_settings')
+      .select('*')
+      .eq('id', id)
+      .is('deleted_at', null)
+      .single(),
+    supabase
+      .from('units')
+      .select('id, name, slug')
+      .eq('active', true)
+      .is('deleted_at', null)
+      .order('name'),
+  ])
 
   if (!path) notFound()
+
+  const units = rawUnits ?? []
 
   const boundAction = updatePath.bind(null, id)
 
@@ -61,6 +71,7 @@ export default async function EditarCaminhoPage({ params }: Props) {
       <PathFormClient
         action={boundAction}
         initial={{
+          unit_id:                path.unit_id,
           path_type:              path.path_type,
           dream_type:             path.dream_type,
           dream_subtype:          path.dream_subtype,
@@ -88,8 +99,17 @@ export default async function EditarCaminhoPage({ params }: Props) {
           down_payment_percent:                path.down_payment_percent,
           bid_percent:                         path.bid_percent,
           average_letter_premium_percent:      path.average_letter_premium_percent,
+          calculation_mode:                    path.calculation_mode,
+          promo_active:                        path.promo_active,
+          promo_label:                         path.promo_label,
+          promo_starts_at:                     path.promo_starts_at,
+          promo_ends_at:                       path.promo_ends_at,
+          promo_admin_fee_rate:                path.promo_admin_fee_rate,
+          promo_installment_amount:            path.promo_installment_amount,
+          promo_reduced_installment_amount:    path.promo_reduced_installment_amount,
         }}
         mode="edit"
+        units={units}
       />
     </AdminShell>
   )

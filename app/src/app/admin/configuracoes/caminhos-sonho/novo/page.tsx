@@ -17,7 +17,17 @@ import type { PathFormInitial }       from '../_PathFormClient'
 import { C }                          from '@/app/components/ui'
 
 interface Props {
-  searchParams: Promise<{ duplicate?: string }>
+  searchParams: Promise<{ duplicate?: string; for_unit?: string }>
+}
+
+async function loadActiveUnits(supabase: ReturnType<typeof createServerSupabaseClient>) {
+  const { data } = await supabase
+    .from('units')
+    .select('id, name, slug')
+    .eq('active', true)
+    .is('deleted_at', null)
+    .order('name')
+  return data ?? []
 }
 
 export default async function NovoCaminhoPage({ searchParams }: Props) {
@@ -38,15 +48,18 @@ export default async function NovoCaminhoPage({ searchParams }: Props) {
     )
   }
 
+  const supabase = createServerSupabaseClient()
+  const units = await loadActiveUnits(supabase)
+
   // ── Duplicar? ──────────────────────────────────────────────────────────────
 
   let initial: PathFormInitial = {}
   let isDuplicate = false
 
   const duplicateId = params.duplicate?.trim()
+  const forUnitId   = params.for_unit?.trim()
 
   if (duplicateId && /^[0-9a-f-]{36}$/.test(duplicateId)) {
-    const supabase = createServerSupabaseClient()
     const { data: source } = await supabase
       .from('dream_path_settings')
       .select('*')
@@ -56,12 +69,16 @@ export default async function NovoCaminhoPage({ searchParams }: Props) {
 
     if (source) {
       isDuplicate = true
-      // Pré-preenche tudo menos o id — label ganha " (cópia)"
+      const targetUnit = forUnitId && /^[0-9a-f-]{36}$/.test(forUnitId)
+        ? units.find(u => u.id === forUnitId)
+        : null
+      const unitSuffix = targetUnit ? ` — ${targetUnit.name}` : ''
       initial = {
+        unit_id:                targetUnit?.id ?? null,
         path_type:              source.path_type,
         dream_type:             source.dream_type,
         dream_subtype:          source.dream_subtype,
-        label:                  `${source.label} (cópia)`,
+        label:                  `${source.label} (cópia${unitSuffix})`,
         description:            source.description,
         sort_order:             source.sort_order,
         active:                 false,   // cópia começa inativa
@@ -85,6 +102,14 @@ export default async function NovoCaminhoPage({ searchParams }: Props) {
         down_payment_percent:                source.down_payment_percent,
         bid_percent:                         source.bid_percent,
         average_letter_premium_percent:      source.average_letter_premium_percent,
+        calculation_mode:                    source.calculation_mode,
+        promo_active:                        source.promo_active,
+        promo_label:                         source.promo_label,
+        promo_starts_at:                     source.promo_starts_at,
+        promo_ends_at:                       source.promo_ends_at,
+        promo_admin_fee_rate:                source.promo_admin_fee_rate,
+        promo_installment_amount:            source.promo_installment_amount,
+        promo_reduced_installment_amount:    source.promo_reduced_installment_amount,
       }
     }
   }
@@ -100,7 +125,7 @@ export default async function NovoCaminhoPage({ searchParams }: Props) {
           background: '#FEF3C7', border: '1px solid #FDE68A', borderRadius: 8,
           padding: '10px 14px', marginBottom: 12, fontSize: 13, color: '#92400E',
         }}>
-          📋 Duplicando registro. A cópia começa <strong>inativa</strong> — ative após revisar.
+          📋 Duplicando registro. A cópia começa <strong>inativa</strong> — escolha a <strong>unidade</strong> de destino (ou Global) e ative após revisar.
         </div>
       )}
 
@@ -108,6 +133,7 @@ export default async function NovoCaminhoPage({ searchParams }: Props) {
         action={createPath}
         initial={initial}
         mode="create"
+        units={units}
       />
     </AdminShell>
   )
