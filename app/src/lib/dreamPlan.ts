@@ -185,6 +185,8 @@ export interface DreamPathSetting {
   annual_interest_rate: number | null
   admin_fee_rate: number | null
   admin_fee_base: string | null
+  /** Correção anual estimada do crédito (ex: 0.08 = 8% a.a.) — simulação */
+  credit_adjustment_rate_annual: number | null
   down_payment_percent: number | null
   bid_percent: number | null
   programmed_contemplation_month: number | null

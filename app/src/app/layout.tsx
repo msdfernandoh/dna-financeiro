@@ -14,10 +14,27 @@ export const viewport: Viewport = {
 // ── Metadata global ───────────────────────────────────────────────────────────
 export const metadata: Metadata = {
   title: {
-    default:  'DNA Financeiro',
+    default:  'DNA Financeiro — Consultor Financeiro Gratuito para Realizar Seus Sonhos',
     template: '%s | DNA Financeiro',
   },
-  description: 'Consultor financeiro com IA para controle de despesas, investimentos, educação financeira e realização de sonhos.',
+  description: 'Controle suas despesas pessoais, organize suas finanças e receba oportunidades locais para economizar. Consultor financeiro gratuito que te ajuda a realizar seus sonhos.',
+  keywords: [
+    'controle financeiro gratuito',
+    'consultor financeiro',
+    'organizar finanças pessoais',
+    'economizar dinheiro',
+    'realizar sonhos',
+    'oportunidades locais',
+  ],
+  robots: {
+    index:  true,
+    follow: true,
+  },
+
+  // URL canônica
+  alternates: {
+    canonical: 'https://dnafinanceiro.app.br/',
+  },
 
   // Manifest → habilita instalação PWA
   manifest: '/manifest.webmanifest',
@@ -38,12 +55,14 @@ export const metadata: Metadata = {
     apple: [{ url: '/pwa-icon?size=192', type: 'image/png', sizes: '192x192' }],
   },
 
-  // Open Graph básico
+  // Open Graph
   openGraph: {
-    title:       'DNA Financeiro',
-    description: 'Consultor financeiro com IA para controle de despesas, investimentos e realização de sonhos.',
+    title:       'DNA Financeiro — Seu Consultor Financeiro Gratuito',
+    description: 'Organize suas finanças pessoais, controle despesas e receba oportunidades para economizar e realizar seus sonhos.',
+    url:         'https://dnafinanceiro.app.br/',
     type:        'website',
     locale:      'pt_BR',
+    siteName:    'DNA Financeiro',
   },
 }
 

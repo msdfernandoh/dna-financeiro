@@ -16,6 +16,10 @@ import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { C } from '@/app/components/ui'
 import { LeadBottomNav } from '@/app/components/LeadBottomNav'
 import {
+  ApplicationVsConsortiumBlock,
+  ConsortiumSmallerLetterBlock,
+} from './_ConsortiumUiBlocks'
+import {
   calculateDreamPlan, fmtBRLPlan, formatDreamSubtype,
   GOAL_STATUS_META, INSTALLMENT_STATUS_META,
   resolveDreamPathsForLead, futureValue, annualToMonthlyRate, evalInstallmentStatus, calcInstallment,
@@ -194,6 +198,7 @@ export default async function SonhoPage({ params, searchParams }: Props) {
           default_amount,
           term_months, annual_return_rate, monthly_interest_rate, annual_interest_rate,
           admin_fee_rate, admin_fee_base, down_payment_percent, bid_percent,
+          credit_adjustment_rate_annual,
           programmed_contemplation_month, anticipation_start_month, anticipation_installments,
           full_installment_amount, reduced_installment_amount,
           group_size, draws_per_month, required_paid_installments_for_credit,
@@ -218,8 +223,15 @@ export default async function SonhoPage({ params, searchParams }: Props) {
     resolvedPaths.some(p => p.path_type === 'investment') &&
     resolvedPaths.some(p =>
       p.path_type === 'consortium_programmed_date' ||
-      p.path_type === 'consortium_traditional'
+      p.path_type === 'consortium_traditional' ||
+      p.path_type === 'consortium_with_bid'
     )
+
+  const investmentPathForCompare = resolvedPaths.find(p => p.path_type === 'investment') ?? null
+  const consortiumPathForCompare =
+    resolvedPaths.find(p => p.path_type === 'consortium_traditional') ??
+    resolvedPaths.find(p => p.path_type === 'consortium_with_bid') ??
+    null
 
   const isRealEstate = primaryDream
     ? REAL_ESTATE_TYPES.has(primaryDream.dream_type)
@@ -608,7 +620,14 @@ export default async function SonhoPage({ params, searchParams }: Props) {
                     })}
                   </Fragment>
                 ))}
-                {showComparisonBlock && <ComparisonBlock />}
+                {showComparisonBlock && investmentPathForCompare && consortiumPathForCompare && (
+                  <ApplicationVsConsortiumBlock
+                    dreamAmount={primaryDream.target_amount}
+                    safeMonthly={safeMonthly}
+                    investmentPath={investmentPathForCompare}
+                    consortiumPath={consortiumPathForCompare}
+                  />
+                )}
               </>
             )}
 
@@ -1333,25 +1352,6 @@ function renderDynamicPathCard(path: DreamPathSetting, ctx: CardCtx): ReactNode 
   }
 }
 
-function ComparisonBlock() {
-  return (
-    <div style={{
-      background: C.purpleBg, borderRadius: 16,
-      border: `0.5px solid ${C.purple}20`,
-      padding: '16px', marginBottom: 8,
-    }}>
-      <p style={{ margin: '0 0 10px', fontSize: 13, fontWeight: 700, color: C.purpleDeep }}>
-        📊 Por que comparar os caminhos?
-      </p>
-      <p style={{ margin: 0, fontSize: 12, color: C.purpleDeep, lineHeight: 1.6 }}>
-        No investimento, o crescimento acontece sobre o dinheiro que você consegue guardar.
-        No consórcio, a atualização pode acompanhar o valor do crédito contratado, conforme regra do plano.
-        Por isso, para sonhos de alto valor, comparar os caminhos ajuda a tomar uma decisão mais consciente.
-      </p>
-    </div>
-  )
-}
-
 function renderCashSavingCard(path: DreamPathSetting, ctx: CardCtx): ReactNode {
   const { target, safeMonthly, sobra, planTermMonths, isRealEstate } = ctx
   const horizons = buildPathHorizonMonths(
@@ -1798,6 +1798,13 @@ function renderConsortiumTraditionalCard(path: DreamPathSetting, ctx: CardCtx): 
         <CartaContemplacaoBlock credit={target} installment={installment} premiumPct={premiumPct} />
       )}
 
+      <ConsortiumSmallerLetterBlock
+        path={path}
+        dreamAmount={target}
+        sobra={sobra}
+        fullInstallment={installment}
+      />
+
       <p style={{ margin: 0, fontSize: 10, color: C.textTer, lineHeight: 1.5 }}>
         ⚠️ Simulação inicial. Contemplação não é garantida — depende de sorteio ou lance.
         O crédito contratado pode ser atualizado conforme regra do plano.
@@ -1865,6 +1872,13 @@ function renderConsortiumWithBidCard(path: DreamPathSetting, ctx: CardCtx): Reac
       {premiumPct !== null && installment !== null && (
         <CartaContemplacaoBlock credit={target} installment={installment} premiumPct={premiumPct} />
       )}
+
+      <ConsortiumSmallerLetterBlock
+        path={path}
+        dreamAmount={target}
+        sobra={sobra}
+        fullInstallment={installment}
+      />
 
       <p style={{ margin: 0, fontSize: 10, color: C.textTer, lineHeight: 1.5 }}>
         ⚠️ Simulação inicial. Lance não garante contemplação — depende das regras da administradora.
