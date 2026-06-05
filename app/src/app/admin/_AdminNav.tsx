@@ -11,16 +11,16 @@ import type { AdminSession } from '@/lib/supabase/admin'
 
 const NAV_ITEMS = [
   { href: '/admin',               label: 'Dashboard',    emoji: '📊', available: true,  exact: true,  masterOnly: false },
-  { href: '/admin/oportunidades', label: 'Oportunidades', emoji: '🎯', available: true,  exact: false, masterOnly: false },
-  { href: '/admin/leads',         label: 'Leads',         emoji: '👥', available: true,  exact: false, masterOnly: false },
-  { href: '/admin/eventos',                            label: 'Eventos',       emoji: '🏠', available: true,  exact: false, masterOnly: true  },
+  { href: '/admin/oportunidades',                     label: 'Oportunidades', emoji: '🎯', available: true,  exact: false, masterOnly: false },
+  { href: '/admin/leads',                             label: 'Leads',         emoji: '👥', available: true,  exact: false, masterOnly: false },
+  { href: '/admin/resultados',                        label: 'Resultados',    emoji: '💰', available: true,  exact: false, masterOnly: false },
+  { href: '/admin/eventos',                           label: 'Eventos',       emoji: '📅', available: true,  exact: false, masterOnly: true  },
   { href: '/admin/unidades',                          label: 'Unidades',      emoji: '🏢', available: true,  exact: false, masterOnly: true  },
   { href: '/admin/usuarios',                          label: 'Usuários',      emoji: '👤', available: true,  exact: false, masterOnly: true  },
   { href: '/admin/configuracoes/caminhos-sonho',      label: 'Caminhos',      emoji: '⚙️', available: true,  exact: false, masterOnly: true  },
-  { href: '/admin/eventos',                           label: 'Eventos',       emoji: '📅', available: true,  exact: false, masterOnly: true  },
-  { href: '/admin/campanhas',     label: 'Campanhas',     emoji: '📣', available: false, exact: false, masterOnly: false },
-  { href: '/admin/perguntas',     label: 'Perguntas',     emoji: '❓', available: false, exact: false, masterOnly: false },
-  { href: '/admin/relatorios',    label: 'Relatórios',    emoji: '📋', available: false, exact: false, masterOnly: false },
+  { href: '/admin/campanhas',                         label: 'Campanhas',     emoji: '📣', available: false, exact: false, masterOnly: false },
+  { href: '/admin/perguntas',                         label: 'Perguntas',     emoji: '❓', available: false, exact: false, masterOnly: false },
+  { href: '/admin/relatorios',                        label: 'Relatórios',    emoji: '📋', available: false, exact: false, masterOnly: false },
 ] as const
 
 interface Props { role: AdminSession['role'] }
