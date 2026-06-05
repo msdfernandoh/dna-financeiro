@@ -31,9 +31,35 @@ const RESERVED_SLUGS = [
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
+const VALID_UNIT_TYPES   = ['city', 'consultant', 'agency'] as const
+const VALID_BLOCK_TYPES  = [
+  'financial_profile','dream_simulation','financial_numbers',
+  'ai_recommendation','alert_section','action_buttons','smart_guidance',
+  'cash_saving','investment',
+  'consortium_traditional','consortium_with_bid','consortium_programmed_date',
+  'financing','cdc','comparison','opportunity',
+] as const
+
 function parseFormData(fd: FormData) {
   const str  = (key: string) => (fd.get(key)?.toString() ?? '').trim()
   const strN = (key: string) => str(key) || null
+
+  // unit_type
+  const rawType = str('unit_type') || 'city'
+  const unit_type = VALID_UNIT_TYPES.includes(rawType as typeof VALID_UNIT_TYPES[number])
+    ? rawType as typeof VALID_UNIT_TYPES[number]
+    : 'city' as const
+
+  // parent_unit_id: UUID válido ou null
+  const rawParent     = strN('parent_unit_id')
+  const parent_unit_id = rawParent && /^[0-9a-f-]{36}$/.test(rawParent) ? rawParent : null
+
+  // allowed_blocks: array de valores válidos | null (sem restrição)
+  const rawBlocks = fd.getAll('allowed_blocks').map(v => v.toString().trim()).filter(Boolean)
+  const allowed_blocks: string[] | null = rawBlocks.length > 0
+    ? rawBlocks.filter(b => (VALID_BLOCK_TYPES as readonly string[]).includes(b))
+    : null
+
   return {
     name:          str('name'),
     slug:          str('slug').toLowerCase(),
@@ -48,6 +74,9 @@ function parseFormData(fd: FormData) {
     logo_url:      strN('logo_url'),
     primary_color: strN('primary_color')?.replace('#', '') ?? null,
     notes:         strN('notes'),
+    unit_type,
+    parent_unit_id,
+    allowed_blocks,
   }
 }
 
@@ -80,6 +109,8 @@ function validate(data: ReturnType<typeof parseFormData>): UnitFormResult | null
     return { success: false, error: 'Plano de funcionalidades inválido.', field: 'plan' }
   if (data.primary_color && !/^[0-9a-fA-F]{6}$/.test(data.primary_color))
     return { success: false, error: 'Cor inválida. Use 6 caracteres hex sem # (ex: 7F77DD).', field: 'primary_color' }
+  if ((data.unit_type === 'consultant' || data.unit_type === 'agency') && !data.parent_unit_id)
+    return { success: false, error: 'Selecione a cidade (unidade pai) para este consultor.', field: 'parent_unit_id' }
   return null
 }
 
@@ -115,6 +146,9 @@ export async function createUnit(
     plan: data.plan as 'basic' | 'standard' | 'premium',
     logo_url: data.logo_url, primary_color: data.primary_color,
     notes: data.notes, active,
+    unit_type:       data.unit_type,
+    parent_unit_id:  data.parent_unit_id,
+    allowed_blocks:  data.allowed_blocks,
   })
 
   if (dbErr) {
@@ -156,6 +190,9 @@ export async function updateUnit(
     plan: data.plan as 'basic' | 'standard' | 'premium',
     logo_url: data.logo_url, primary_color: data.primary_color,
     notes: data.notes, active,
+    unit_type:       data.unit_type,
+    parent_unit_id:  data.parent_unit_id,
+    allowed_blocks:  data.allowed_blocks,
   }).eq('id', unitId)
 
   if (dbErr) {
