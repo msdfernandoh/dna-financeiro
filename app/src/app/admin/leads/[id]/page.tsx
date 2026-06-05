@@ -18,6 +18,8 @@ import { requireAdmin }               from '@/lib/supabase/admin'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { AdminShell }                 from '../../_AdminShell'
 import { C }                          from '@/app/components/ui'
+import { DealForm }                                    from '../_DealForm'
+import { createDeal, reassignLeadDirect }              from '../actions'
 import {
   calculateDreamPlan, formatDreamSubtype, fmtBRLPlan,
   GOAL_STATUS_META, INSTALLMENT_STATUS_META,
@@ -290,6 +292,18 @@ type DnaAnswer = {
 
 type ExpRow = { amount: number; category: string; expense_date: string }
 
+type DealRow = {
+  id:           string
+  status:       string
+  product_type: string | null
+  sale_amount:  number | null
+  gain_amount:  number | null
+  closed_at:    string | null
+  notes:        string | null
+}
+
+type ConsultantOption = { id: string; name: string; contact_name: string }
+
 type BizProfileAdmin = {
   business_name: string | null
   segment: string | null
@@ -545,13 +559,56 @@ export default async function LeadDetailPage({
     ? calculateDreamPlan(primaryDream.target_amount, sobra, planSettings)
     : null
 
-  // ── 6. Nome da unidade (master only) ──────────────────────────────────────
+  // ── 6. Nome da unidade + tipo (master only) ──────────────────────────────
   let unitName = ''
+  let unitType = 'city'
+  let unitParentId: string | null = null
   if (session.role === 'master') {
     const { data: unit } = await supabase
-      .from('units').select('name').eq('id', lead.unit_id).single()
-    unitName = unit?.name ?? lead.unit_slug
+      .from('units')
+      .select('name, unit_type, parent_unit_id')
+      .eq('id', lead.unit_id)
+      .single()
+    unitName      = unit?.name ?? lead.unit_slug
+    unitType      = (unit as { unit_type?: string } | null)?.unit_type ?? 'city'
+    unitParentId  = (unit as { parent_unit_id?: string | null } | null)?.parent_unit_id ?? null
   }
+
+  // ── 7. Negócios fechados deste lead ───────────────────────────────────────
+  let leadDeals: DealRow[] = []
+  if (canSeeSensitive) {
+    try {
+      const { data } = await supabase
+        .from('deals')
+        .select('id, status, product_type, sale_amount, gain_amount, closed_at, notes')
+        .eq('lead_id', leadId)
+        .order('closed_at', { ascending: false })
+      leadDeals = (data ?? []) as DealRow[]
+    } catch { /* graceful */ }
+  }
+
+  // ── 8. Consultores disponíveis para reatribuição (city units) ────────────
+  // Quando lead está em uma unidade cidade, o master/unit_admin pode
+  // direcioná-lo para um consultor filho
+  let consultantOptions: ConsultantOption[] = []
+  const isLeadInCityUnit = unitType === 'city' || (session.role !== 'master' && !unitParentId)
+  if (canSeeSensitive && isLeadInCityUnit) {
+    try {
+      const { data } = await supabase
+        .from('units')
+        .select('id, name, contact_name')
+        .eq('parent_unit_id', lead.unit_id)
+        .in('unit_type', ['consultant', 'agency'])
+        .eq('active', true)
+        .is('deleted_at', null)
+        .order('name')
+      consultantOptions = (data ?? []) as ConsultantOption[]
+    } catch { /* graceful */ }
+  }
+
+  // Bound actions
+  const boundCreateDeal  = createDeal.bind(null,         leadId)
+  const boundReassign    = reassignLeadDirect.bind(null, leadId)
 
   // ── Derivações ─────────────────────────────────────────────────────────────
   const sMeta        = STATUS_META[lead.status] ?? STATUS_META.new
@@ -746,6 +803,7 @@ export default async function LeadDetailPage({
       }}>
         {([
           { href: '#resumo',        label: '📊 Resumo'        },
+          { href: '#negocios',      label: '🤝 Negócios'      },
           { href: '#dna',           label: '🧬 DNA'           },
           ...(isBusinessLead ? [{ href: '#empresa', label: '🏢 Empresa' }] : []),
           { href: '#financeiro',    label: '💸 Financeiro'    },
@@ -945,6 +1003,151 @@ export default async function LeadDetailPage({
           </div>
         )}
       </Section>
+
+      {/* ════════════════════════════════════════════
+          PARTE B2 — Negócios fechados
+      ════════════════════════════════════════════ */}
+      {canSeeSensitive && (
+        <Section id="negocios" title="Negócios fechados" emoji="🤝">
+
+          {/* Toast deal criado */}
+          {/* (searchParams não disponível aqui — toast via redirect já está no URL) */}
+
+          {/* Histórico de deals */}
+          {leadDeals.length === 0 ? (
+            <div style={{
+              background: C.bgSecondary, borderRadius: 10,
+              padding: '14px 16px', textAlign: 'center',
+            }}>
+              <p style={{ fontSize: 13, color: C.textSec, margin: '0 0 2px', fontWeight: 500 }}>
+                Nenhum negócio registrado para este lead.
+              </p>
+              <p style={{ fontSize: 11, color: C.textTer, margin: 0 }}>
+                Use o botão abaixo para registrar quando fechar uma venda.
+              </p>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 4 }}>
+              {leadDeals.map(deal => {
+                const statusMeta = {
+                  won:     { label: '✅ Fechado',     color: C.greenDark,   bg: C.greenBg  },
+                  lost:    { label: '❌ Perdido',     color: '#991B1B',     bg: '#FEF2F2'  },
+                  pending: { label: '⏳ Em andamento', color: C.amberDark,  bg: C.amberBg  },
+                }[deal.status] ?? { label: deal.status, color: C.textSec, bg: C.bgSecondary }
+
+                const PRODUCT_LABELS: Record<string, string> = {
+                  consorcio: '🤝 Consórcio', financiamento: '🏦 Financiamento',
+                  cdc: '💳 CDC', investment: '📈 Investimento',
+                  imovel: '🏠 Imóvel', outro: '📦 Outro',
+                }
+
+                return (
+                  <div key={deal.id} style={{
+                    background: '#fff', borderRadius: 12,
+                    border: `1px solid ${C.border}`, padding: '12px 14px',
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                      <span style={{
+                        fontSize: 10, fontWeight: 700, padding: '2px 8px',
+                        borderRadius: 99, background: statusMeta.bg, color: statusMeta.color,
+                      }}>
+                        {statusMeta.label}
+                      </span>
+                      {deal.product_type && (
+                        <span style={{ fontSize: 12, color: C.text, fontWeight: 600 }}>
+                          {PRODUCT_LABELS[deal.product_type] ?? deal.product_type}
+                        </span>
+                      )}
+                      {deal.closed_at && (
+                        <span style={{ fontSize: 11, color: C.textTer, marginLeft: 'auto' }}>
+                          {new Date(deal.closed_at).toLocaleDateString('pt-BR', {
+                            day: '2-digit', month: '2-digit', year: '2-digit',
+                          })}
+                        </span>
+                      )}
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+                      <div style={{ background: C.greenBg, borderRadius: 8, padding: '8px 10px' }}>
+                        <p style={{ margin: '0 0 2px', fontSize: 9, color: C.greenDark, fontWeight: 600, textTransform: 'uppercase' }}>
+                          Valor da venda
+                        </p>
+                        <p style={{ margin: 0, fontSize: 14, fontWeight: 700, color: C.greenDark }}>
+                          {deal.sale_amount != null
+                            ? deal.sale_amount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 })
+                            : '—'}
+                        </p>
+                      </div>
+                      <div style={{ background: C.amberBg, borderRadius: 8, padding: '8px 10px' }}>
+                        <p style={{ margin: '0 0 2px', fontSize: 9, color: C.amberDark, fontWeight: 600, textTransform: 'uppercase' }}>
+                          Meu ganho
+                        </p>
+                        <p style={{ margin: 0, fontSize: 14, fontWeight: 700, color: C.amberDark }}>
+                          {deal.gain_amount != null
+                            ? deal.gain_amount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 })
+                            : '—'}
+                        </p>
+                      </div>
+                    </div>
+                    {deal.notes && (
+                      <p style={{ margin: '8px 0 0', fontSize: 11, color: C.textSec, lineHeight: 1.5 }}>
+                        📝 {deal.notes}
+                      </p>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          )}
+
+          {/* Formulário de novo negócio */}
+          {session.role !== 'unit_viewer' && (
+            <DealForm action={boundCreateDeal} />
+          )}
+
+          {/* Reatribuir para consultor */}
+          {consultantOptions.length > 0 && session.role !== 'unit_viewer' && (
+            <div style={{
+              marginTop: 16, background: C.amberBg, borderRadius: 12,
+              padding: '12px 14px', border: `1px solid ${C.amber}30`,
+            }}>
+              <p style={{ margin: '0 0 8px', fontSize: 12, fontWeight: 700, color: C.amberDark }}>
+                ↗️ Direcionar para consultor
+              </p>
+              <p style={{ margin: '0 0 10px', fontSize: 11, color: C.amberDark, lineHeight: 1.4 }}>
+                Este lead está na unidade cidade. Você pode direcioná-lo para um consultor específico.
+              </p>
+              <form action={boundReassign} style={{ display: 'flex', gap: 8 }}>
+                <select
+                  name="new_unit_id"
+                  style={{
+                    flex: 1, padding: '8px 10px', borderRadius: 8, fontSize: 12,
+                    border: `1px solid ${C.amber}40`, background: '#fff', color: C.text,
+                    fontFamily: 'inherit', outline: 'none', appearance: 'none',
+                  }}
+                >
+                  <option value="">— Selecione o consultor —</option>
+                  {consultantOptions.map(c => (
+                    <option key={c.id} value={c.id}>
+                      {c.name} ({c.contact_name})
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="submit"
+                  style={{
+                    padding: '8px 14px', borderRadius: 8, fontSize: 12, fontWeight: 600,
+                    background: C.amberDark, color: '#fff',
+                    border: 'none', cursor: 'pointer', fontFamily: 'inherit',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  Direcionar →
+                </button>
+              </form>
+            </div>
+          )}
+        </Section>
+      )}
 
       {/* ════════════════════════════════════════════
           PARTE C — DNA Respondido
